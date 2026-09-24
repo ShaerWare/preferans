@@ -1,0 +1,34 @@
+// Правила «Сочинки». Всё спорное вынесено в конфиг, чтобы можно было подстроить под свою компанию.
+
+export const SUITS = ['S', 'C', 'D', 'H']; // ♠ ♣ ♦ ♥ — порядок старшинства в торговле
+export const RANKS = ['7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+export const SUIT_SYMBOL = { S: '♠', C: '♣', D: '♦', H: '♥', N: 'БК' };
+
+// Лестница заявок: 6♠ … 8БК, мизер, 9♠ … 10БК
+export const BIDS = [];
+for (const lvl of [6, 7, 8, 9, 10]) {
+  if (lvl === 9) BIDS.push('MIS');
+  for (const s of [...SUITS, 'N']) BIDS.push(`${lvl}${s}`);
+}
+export const bidIndex = (b) => BIDS.indexOf(b);
+export const bidLevel = (b) => (b === 'MIS' ? null : parseInt(b, 10));
+export const bidTrump = (b) => (b === 'MIS' ? null : b.slice(-1)); // 'N' = без козыря
+
+export const DEFAULT_CONFIG = {
+  poolTarget: 20, // размер пули на каждого
+  gameValue: { 6: 2, 7: 4, 8: 6, 9: 8, 10: 10, MIS: 10 },
+  // сколько взяток обязаны взять вистующие (в сумме)
+  whistObligation: { 6: 4, 7: 2, 8: 1, 9: 1, 10: 0 },
+  halfWhistLevels: [6], // на каких играх разрешены «полвиста»
+  responsibleWhist: true, // Сочи: недобор виста — половина стоимости в гору за взятку
+  raspasPrice: 1, // цена взятки на распасах
+  raspasZeroBonus: 1, // в пулю за «чистый» распас (ноль взяток)
+  raspasTalonLeads: true, // первые две взятки на распасах — в масть карт прикупа
+  whistPointsPerPool: 10, // перевод пули/горы в висты при расчёте
+};
+
+export const bidLabel = (b) => {
+  if (b === 'PASS') return 'пас';
+  if (b === 'MIS') return 'мизер';
+  return `${bidLevel(b)}${SUIT_SYMBOL[bidTrump(b)]}`;
+};

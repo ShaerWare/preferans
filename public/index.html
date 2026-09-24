@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Преферанс · Сочи</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div id="title">Преферанс · Сочи</div>
+      <div class="top-actions">
+        <button id="btn-score" class="icon-btn" title="Пулька">📊</button>
+        <button id="btn-chat" class="icon-btn" title="Чат">💬<span id="chat-badge" hidden></span></button>
+        <button id="btn-group" class="icon-btn" title="Чат группы и звонок" hidden>📞</button>
+      </div>
+    </header>
+    <div id="call-banner" hidden>🔴 В группе идёт звонок — <a href="#" id="call-join">присоединиться</a></div>
+    <main id="screen"></main>
+  </div>
+
+  <div id="chat-panel" class="sheet" hidden>
+    <div class="sheet-head"><b>Чат стола</b><button class="icon-btn" data-close>✕</button></div>
+    <div id="chat-list"></div>
+    <div id="emote-bar"></div>
+    <form id="chat-form"><input id="chat-input" maxlength="500" placeholder="Сообщение…" autocomplete="off"><button>➤</button></form>
+  </div>
+
+  <div id="score-panel" class="sheet" hidden>
+    <div class="sheet-head"><b>Пулька</b><button class="icon-btn" data-close>✕</button></div>
+    <div id="score-body"></div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
