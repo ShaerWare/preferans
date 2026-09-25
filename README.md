@@ -97,6 +97,19 @@ server {
 
 Запуск через systemd или `pm2 start server/index.js --name pref`.
 
+## Продакшн (178.208.81.231)
+
+- Код: `/srv/preferans` (git, read-only deploy key `github-preferans`), контейнер `preferans-app-1` на `127.0.0.1:8097`.
+- nginx: `/etc/nginx/sites-available/preferans` (копия `deploy/nginx/preferans.conf`), домен `pref.shaerware.ru`.
+- Столы хранятся в docker-томе `preferans_data`, переживают пересборку.
+- `.env` лежит только на сервере (`chmod 600`), в git его нет.
+
+Обновить после пуша в `main`:
+
+```bash
+ssh root@178.208.81.231 'cd /srv/preferans && git pull && docker compose up -d --build'
+```
+
 ## Как играть
 
 1. Создайте группу с двумя друзьями, добавьте бота.
