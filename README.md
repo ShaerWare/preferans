@@ -100,7 +100,7 @@ server {
 ## Продакшн (178.208.81.231)
 
 - Код: `/srv/preferans` (git, read-only deploy key `github-preferans`), контейнер `preferans-app-1` на `127.0.0.1:8097`.
-- nginx: `/etc/nginx/sites-available/preferans` (копия `deploy/nginx/preferans.conf`), домен `pref.shaerware.ru`.
+- nginx: `/etc/nginx/sites-available/preferans` (копия `deploy/nginx/preferans.conf`), домен `artemshaer.ru`.
 - Столы хранятся в docker-томе `preferans_data`, переживают пересборку.
 - `.env` лежит только на сервере (`chmod 600`), в git его нет.
 
