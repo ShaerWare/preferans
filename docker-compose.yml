@@ -1,0 +1,16 @@
+name: preferans
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 8080
+    ports:
+      - "127.0.0.1:8097:8080" # наружу — только через системный nginx
+    volumes:
+      - data:/app/data
+
+volumes:
+  data:
