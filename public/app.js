@@ -227,7 +227,7 @@ function centerHtml() {
 
   let inner = '';
   if (v.phase === 'bidding') {
-    inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 4px,#a8283a 4px 8px)"></div><div class="card" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 4px,#a8283a 4px 8px)"></div></div></div>`;
+    inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div></div></div>`;
   } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || (v.phase === 'dealEnd' && !v.play)) {
     inner = v.talon ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
   } else if (v.play) {
@@ -254,7 +254,7 @@ function actionsHtml() {
     case 'bidding': {
       const log = v.bidding.log.map((x) => `${name(x.seat)}: ${bidHtml(x.bid)}`).join(' · ');
       if (!l.bids.length) return wait(`Торгуется <b>${name(t)}</b>…`) + (log ? `<div class="bid-log">${log}</div>` : '');
-      return `<div class="msg"><b>Ваше слово</b></div>${bidGrid(l.bids, 'bid')}${log ? `<div class="bid-log">${log}</div>` : ''}`;
+      return `<div class="bid-head"><b>Ваше слово</b><button class="btn small pass" data-act="bid" data-b="PASS">Пас</button></div>${bidGrid(l.bids, 'bid')}${log ? `<div class="bid-log">${log}</div>` : ''}`;
     }
     case 'talon': {
       if (!l.contracts.length) return wait(`<b>${name(v.declarer)}</b> взял прикуп и сносит…`);
@@ -298,7 +298,6 @@ function bidGrid(legal, kind, selected) {
     const row = ['S', 'C', 'D', 'H', 'N'].map((s) => `${lvl}${s}`);
     if (row.some((b) => ok.has(b))) html += row.map(btn).join(''); // недоступные уровни не показываем
   }
-  if (kind === 'bid') html += `<button data-act="bid" data-b="PASS" class="wide" style="background:#ddd">пас</button>`;
   return `<div class="bid-grid">${html}</div>`;
 }
 

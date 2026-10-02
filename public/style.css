@@ -25,7 +25,7 @@ body {
   user-select: none;
 }
 button { font: inherit; color: inherit; cursor: pointer; }
-#app { display: flex; flex-direction: column; height: 100%; padding-top: var(--safe-top); }
+#app { display: flex; flex-direction: column; height: var(--tg-viewport-stable-height, 100%); padding-top: var(--safe-top); }
 
 #topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: var(--panel); }
 #title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -56,7 +56,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seg button.on { background: var(--gold); color: #222; font-weight: 600; }
 
 /* --- стол --- */
-.table { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; min-height: 0; gap: 6px; }
+.table { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(22px, 1fr) auto auto; min-height: 0; gap: 6px; }
 .opponents { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; }
 .opp { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; position: relative; }
 .opp.right { align-items: flex-end; text-align: right; }
@@ -75,7 +75,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mini-hand { display: flex; flex-wrap: wrap; gap: 2px; max-width: 100%; }
 .opp.right .mini-hand { justify-content: flex-end; }
 
-.center { position: relative; display: grid; place-items: center; min-height: 170px; }
+.center { position: relative; display: grid; place-items: center; min-height: 22px; overflow: hidden; padding-top: 18px; }
 .contract-info { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--muted); white-space: nowrap; }
 .trick { position: relative; width: calc(var(--card-w) * 3.2); height: calc(var(--card-h) * 1.9); }
 .trick .card { position: absolute; transition: transform .2s; }
@@ -105,17 +105,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card.dim { filter: brightness(.6); }
 .card.sel { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--gold), 0 4px 10px rgba(0,0,0,.5); }
 
-.hand-wrap { padding: 16px 0 4px; }
+.hand-wrap { padding: 14px 0 4px; flex: none; } /* рука всегда видна целиком */
 .hand { display: flex; justify-content: center; min-width: 0; }
 .hand .card { transition: transform .15s; }
 .hand .card.legal:hover, .hand .card.legal:active { transform: translateY(-10px); }
 .me-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; position: relative; }
 
 /* --- панель действий --- */
-.actions { background: var(--panel); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.actions { max-height: 44vh; overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border-radius: 12px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .actions .msg { font-size: 14px; text-align: center; }
-.bid-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; width: 100%; max-width: 380px; }
-.bid-grid button { border: 0; border-radius: 7px; padding: 6px 0; background: #fffdf7; color: var(--black); font-weight: 700; font-size: 14px; }
+.bid-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; width: 100%; max-width: 380px; }
+.bid-grid button { border: 0; border-radius: 6px; padding: 4px 0; line-height: 1.25; background: #fffdf7; color: var(--black); font-weight: 700; font-size: 14px; }
 .bid-grid button.red { color: var(--red); }
 .bid-grid button:disabled { opacity: .25; }
 .bid-grid button.on { outline: 3px solid var(--gold); }
@@ -164,3 +164,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .lobby .seg button { padding: 6px 9px; font-size: 13px; }
 .opp .btn.small { align-self: flex-start; }
 .opp.right .btn.small { align-self: flex-end; }
+/* «Пас» — в заголовке панели торговли, всегда на виду */
+.bid-head { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 380px; position: sticky; top: -6px; background: #183d2c; padding: 2px 0 4px; z-index: 1; }
+.bid-head .pass { background: #e6e6e6; color: #222; min-width: 96px; }
