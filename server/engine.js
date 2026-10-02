@@ -142,6 +142,17 @@ export function legalContracts(state) {
   return BIDS.filter((b) => b !== 'MIS' && bidIndex(b) >= bidIndex(bid));
 }
 
+// «Без трёх»: после прикупа играющий отказывается от игры, которую выиграл в торговле
+function doWithoutThree(state, seat) {
+  if (state.phase !== 'talon' || seat !== state.declarer) throw new GameError('Сдаться может только играющий после прикупа');
+  if (state.config.allowWithoutThree === false) throw new GameError('«Без трёх» отключено в правилах');
+  const bid = state.bidding.highest.bid;
+  if (bid === 'MIS') throw new GameError('Мизер не сдают «без трёх»');
+  state.contract = bid;
+  say(state, `${state.players[seat].name}: ${bidLabel(bid)} — без трёх.`);
+  settle(state, { kind: 'w3' });
+}
+
 function doDiscard(state, seat, cards, contract) {
   if (seat !== state.declarer) throw new GameError('Сносит только играющий');
   if (!Array.isArray(cards) || cards.length !== 2 || cards[0] === cards[1]) throw new GameError('Нужно снести ровно 2 карты');
@@ -287,6 +298,7 @@ function trickWinner(p) {
 function doPlay(state, userSeat, card) {
   const p = state.play;
   if (state.phase !== 'play') throw new GameError('Сейчас не розыгрыш');
+  if (p.proposal) throw new GameError('Сначала ответьте на предложение');
   if (p.controller[p.turn] !== userSeat) throw new GameError('Не ваш ход');
   const seat = p.turn;
   if (!legalCards(state, seat).includes(card)) throw new GameError('Так ходить нельзя');
@@ -307,6 +319,58 @@ function doPlay(state, userSeat, card) {
   }
   if (p.trickNo === 10) return settle(state, { kind: p.kind });
   beginTrick(state);
+}
+
+// ---------- «Предложить»: договориться об оставшихся взятках ----------
+
+export const remainingTricks = (state) => 10 - state.play.trickNo;
+
+// Кто ещё должен ответить на предложение
+export function proposalPending(state) {
+  const pr = state?.phase === 'play' && state.play.proposal;
+  if (!pr) return [];
+  return [0, 1, 2].filter((s) => s !== pr.by && pr.answers[s] == null);
+}
+
+function doPropose(state, seat, tricks) {
+  const p = state.play;
+  if (state.phase !== 'play') throw new GameError('Предлагать можно только во время розыгрыша');
+  if (p.proposal) throw new GameError('Уже есть предложение');
+  const rem = remainingTricks(state);
+  if (!Array.isArray(tricks) || tricks.length !== 3 || !tricks.every((x) => Number.isInteger(x) && x >= 0)
+    || tricks.reduce((a, b) => a + b, 0) !== rem) {
+    throw new GameError(`Нужно распределить ровно ${rem} взят.`);
+  }
+  p.proposal = { by: seat, tricks: [...tricks], answers: {} };
+  say(state, `${state.players[seat].name} предлагает: ${proposalText(state, tricks)}`);
+}
+
+function proposalText(state, tricks) {
+  return [0, 1, 2].map((s) => `${state.players[s].name} +${tricks[s]}`).join(', ');
+}
+
+function doAnswerProposal(state, seat, accept) {
+  const p = state.play;
+  const pr = p?.proposal;
+  if (!pr || !proposalPending(state).includes(seat)) throw new GameError('Нечего отвечать');
+  say(state, `${state.players[seat].name}: ${accept ? 'согласен' : 'нет, играем'}`);
+  if (!accept) { p.proposal = null; return; }
+  pr.answers[seat] = true;
+  if (proposalPending(state).length) return;
+  // все согласны — дописываем взятки и считаем раздачу
+  for (const s of [0, 1, 2]) p.tricks[s] += pr.tricks[s];
+  p.trickNo = 10;
+  p.trick = [];
+  p.proposal = null;
+  say(state, 'Предложение принято.');
+  settle(state, { kind: p.kind });
+}
+
+function doCancelProposal(state, seat) {
+  const pr = state.play?.proposal;
+  if (!pr || pr.by !== seat) throw new GameError('Нечего отзывать');
+  state.play.proposal = null;
+  say(state, `${state.players[seat].name} отозвал предложение`);
 }
 
 // ---------- Подсчёт ----------
@@ -363,6 +427,16 @@ function settle(state, { kind }) {
     const t = tricks[d];
     if (t === 0) { addPool(state, d, v); lines.push(`${name(d)} сыграл мизер → пуля +${v}`); }
     else { sc.mountain[d] += v * t; lines.push(`${name(d)} поймали на мизере (${t}) → гора +${v * t}`); }
+  } else if (kind === 'w3') {
+    const level = bidLevel(state.contract);
+    const v = cfg.gameValue[level];
+    const each = (10 - (level - 3)) / 2; // защита как будто взяла остальное поровну
+    sc.mountain[d] += 3 * v;
+    lines.push(`${name(d)}: без трёх → гора +${3 * v}`);
+    for (const s of [next(d), next(next(d))]) {
+      sc.whists[s][d] += 3 * v + v * each;
+      lines.push(`${name(s)} → висты +${3 * v + v * each}`);
+    }
   } else {
     const level = bidLevel(state.contract);
     const v = cfg.gameValue[level];
@@ -424,6 +498,7 @@ function settle(state, { kind }) {
 
   const title = kind === 'raspas' ? 'Распасы'
     : kind === 'misere' ? `Мизер — ${name(d)}`
+    : kind === 'w3' ? `${bidLabel(state.contract)} без трёх — ${name(d)}`
     : `${bidLabel(state.contract)} — ${name(d)}`;
   state.lastResult = { title, lines, tricks };
   state.history.push({ dealNo: state.dealNo, title, lines });
@@ -465,6 +540,10 @@ export function act(state, seat, action) {
     case 'whist': doWhist(state, seat, action.choice); break;
     case 'whistMode': doWhistMode(state, seat, action.open); break;
     case 'play': doPlay(state, seat, action.card); break;
+    case 'withoutThree': doWithoutThree(state, seat); break;
+    case 'propose': doPropose(state, seat, action.tricks); break;
+    case 'answerProposal': doAnswerProposal(state, seat, !!action.accept); break;
+    case 'cancelProposal': doCancelProposal(state, seat); break;
     case 'nextDeal':
       if (state.phase !== 'dealEnd') throw new GameError('Раздача ещё идёт');
       startDeal(state); break;
@@ -479,9 +558,10 @@ export function act(state, seat, action) {
 export function viewFor(state, seat) {
   const p = state.play;
   const openSeats = new Set(p ? p.open : []);
+  if (p?.proposal) openSeats.add(p.proposal.by); // предлагая, игрок кладёт карты на стол
   const handVisible = (s) => s === seat || openSeats.has(s) || state.phase === 'dealEnd' || state.phase === 'gameOver';
   const controls = p ? [0, 1, 2].filter((s) => p.controller[s] === seat) : seat != null ? [seat] : [];
-  const myTurnSeat = p && state.phase === 'play' && p.controller[p.turn] === seat ? p.turn : null;
+  const myTurnSeat = p && state.phase === 'play' && !p.proposal && p.controller[p.turn] === seat ? p.turn : null;
   return {
     phase: state.phase,
     seat,
@@ -510,6 +590,8 @@ export function viewFor(state, seat) {
       kind: p.kind, trump: p.trump, turn: p.turn, trick: p.trick, leadSuit: p.leadSuit,
       lastTrick: p.lastTrick, tricks: p.tricks, trickNo: p.trickNo, open: p.open,
       talonLead: p.kind === 'raspas' && state.config.raspasTalonLeads && p.trickNo < 2 ? state.talon[p.trickNo] : null,
+      proposal: p.proposal || null,
+      remaining: 10 - p.trickNo,
     },
     legal: {
       bids: seat != null ? legalBids(state, seat) : [],
@@ -519,6 +601,10 @@ export function viewFor(state, seat) {
       cards: myTurnSeat != null ? legalCards(state, myTurnSeat) : [],
       playSeat: myTurnSeat,
       controls,
+      withoutThree: state.phase === 'talon' && seat === state.declarer && state.config.allowWithoutThree !== false
+        && state.bidding.highest.bid !== 'MIS',
+      propose: seat != null && state.phase === 'play' && !p.proposal,
+      answerProposal: seat != null && proposalPending(state).includes(seat),
     },
     lastResult: state.lastResult,
     history: state.history.slice(-30),

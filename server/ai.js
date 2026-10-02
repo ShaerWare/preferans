@@ -1,7 +1,7 @@
 // ИИ-игроки для «Сочинки». Бот видит только то, что видел бы человек на его месте:
 // свою руку, открытые карты, прикуп (если открыт), вышедшие карты и выявленные «ренонсы».
 import { SUITS, RANKS, BIDS, bidIndex, bidLevel, bidTrump } from './rules.js';
-import { legalBids, legalContracts, legalWhist, newDeck } from './engine.js';
+import { legalBids, legalContracts, legalWhist, newDeck, proposalPending } from './engine.js';
 
 export const AI_LEVELS = {
   novice: { label: 'Новичок', samples: 6, noise: 1.6, randomPlay: 0.4, memory: false, mc: 0, misereSlack: 2 },
@@ -349,8 +349,10 @@ function decideDiscard(state, seat, lvl, rng) {
     const score = mean(dist) - L0 + (lvl.noise ? gauss(rng) * lvl.noise * 0.5 : 0);
     let L = L0;
     while (L < 10 && probAtLeast(dist, L + 1) >= 0.8 && lvl.memory) L++; // сильные повышают заказ, если уверены
-    if (!best || score > best.score) best = { score, contract: `${L}${t}`, discard };
+    if (!best || score > best.score) best = { score, contract: `${L}${t}`, discard, expect: mean(dist), L0 };
   }
+  // безнадёжно (ждём недобор больше трёх) — опытные сдаются «без трёх»
+  if (lvl.memory && state.config.allowWithoutThree !== false && best.expect <= best.L0 - 4) return { type: 'withoutThree' };
   return { type: 'discard', cards: best.discard, contract: best.contract };
 }
 
@@ -426,7 +428,7 @@ function knownVoids(state) {
 // Случайный расклад скрытых карт, не противоречащий тому, что видит actor
 function sampleHands(state, actor, rng) {
   const p = state.play;
-  const visible = new Set([actor, ...p.open]);
+  const visible = new Set([actor, ...p.open, ...(p.proposal ? [p.proposal.by] : [])]);
   const played = new Set();
   for (const t of p.history) for (const x of t.cards) played.add(x.card);
   for (const x of p.trick) played.add(x.card);
@@ -504,8 +506,22 @@ function decidePlay(state, actor, lvl, rng) {
 
 // ---------- Точка входа ----------
 
+// Ответ на «Предложить»: доигрываем возможные расклады и сравниваем с предложенным итогом
+function decideProposal(state, seat, lvl, rng) {
+  const p = state.play;
+  const pr = p.proposal;
+  const proposed = objective(state, [0, 1, 2].map((s) => p.tricks[s] + pr.tricks[s]), seat);
+  const base = playSim(state);
+  const n = Math.max(lvl.mc, 16);
+  let total = 0;
+  for (let i = 0; i < n; i++) total += objective(state, playout(cloneSim(base, sampleHands(state, seat, rng)), AI_LEVELS.pro, rng), seat);
+  const noise = lvl.noise ? gauss(rng) * lvl.noise : 0;
+  return proposed + noise >= total / n - 0.25;
+}
+
 export function decide(state, seat, levelKey, rng = Math.random) {
   const lvl = AI_LEVELS[levelKey] || AI_LEVELS.amateur;
+  if (proposalPending(state).includes(seat)) return { type: 'answerProposal', accept: decideProposal(state, seat, lvl, rng) };
   switch (state.phase) {
     case 'bidding': return { type: 'bid', bid: decideBid(state, seat, lvl, rng) };
     case 'talon': return decideDiscard(state, seat, lvl, rng);
@@ -517,6 +533,14 @@ export function decide(state, seat, levelKey, rng = Math.random) {
 }
 
 // Чей сейчас ход (место, которое должно действовать), или null
+// Все места, от которых сейчас ждут действия (на предложение отвечают сразу несколько)
+export function actingSeats(state) {
+  const pending = proposalPending(state);
+  if (pending.length) return pending;
+  const s = actorSeat(state);
+  return s == null ? [] : [s];
+}
+
 export function actorSeat(state) {
   switch (state?.phase) {
     case 'bidding': return state.bidding.turn;

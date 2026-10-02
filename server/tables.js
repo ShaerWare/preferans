@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createGame, act, viewFor } from './engine.js';
-import { decide, actorSeat, AI_LEVELS, AI_NAMES } from './ai.js';
+import { decide, actingSeats, AI_LEVELS, AI_NAMES } from './ai.js';
 import { bidLabel } from './rules.js';
 
 const CHAT_LIMIT = 200;
@@ -49,8 +49,8 @@ export class Tables {
 
   scheduleAI(t) {
     const g = t.game;
-    const seat = actorSeat(g);
-    if (seat == null || !t.seats[seat]?.ai || this.aiTimers.has(t.id)) return;
+    const seat = actingSeats(g).find((s) => t.seats[s]?.ai);
+    if (seat == null || this.aiTimers.has(t.id)) return;
     const base = g.phase === 'play' ? 650 : 1100;
     const delay = (base + Math.random() * base * 0.8) * this.aiDelay;
     this.aiTimers.set(t.id, setTimeout(() => {
@@ -61,14 +61,15 @@ export class Tables {
 
   runAI(t, seat) {
     const g = t.game;
-    if (actorSeat(g) !== seat || !t.seats[seat]?.ai) return this.scheduleAI(t);
+    if (!actingSeats(g).includes(seat) || !t.seats[seat]?.ai) return this.scheduleAI(t);
     try {
       this.actSeat(t, seat, decide(g, seat, t.seats[seat].ai));
     } catch (e) {
       // бот не должен останавливать игру: делаем любой допустимый ход
       console.error('[ai]', e);
       const l = viewFor(g, seat).legal;
-      const fallback = l.bids.length ? { type: 'bid', bid: 'PASS' }
+      const fallback = l.answerProposal ? { type: 'answerProposal', accept: false }
+        : l.bids.length ? { type: 'bid', bid: 'PASS' }
         : l.contracts.length ? { type: 'discard', cards: g.hands[seat].slice(0, 2), contract: l.contracts[0] }
         : l.whist.length ? { type: 'whist', choice: 'PASS' }
         : l.whistMode ? { type: 'whistMode', open: true }

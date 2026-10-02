@@ -167,3 +167,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* «Пас» — в заголовке панели торговли, всегда на виду */
 .bid-head { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 380px; position: sticky; top: -6px; background: #183d2c; padding: 2px 0 4px; z-index: 1; }
 .bid-head .pass { background: #e6e6e6; color: #222; min-width: 96px; }
+/* «Предложить» */
+.prop-row { display: grid; grid-template-columns: 1fr auto 2ch auto; align-items: center; gap: 8px; width: 100%; max-width: 320px; }
+.prop-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prop-row b { text-align: center; font-size: 17px; }
+.btn.danger { background: var(--red); color: #fff; }

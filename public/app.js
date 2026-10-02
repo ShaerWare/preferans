@@ -66,7 +66,8 @@ function onState(m) {
   const prev = S.view;
   S.table = m.table; S.view = m.view; S.link = m.link;
   const v = S.view;
-  if (v?.phase !== S.lastPhase) { S.discardSel.clear(); S.contractSel = null; S.lastPhase = v?.phase; }
+  if (v?.phase !== S.lastPhase) { S.discardSel.clear(); S.contractSel = null; S.confirmW3 = false; S.lastPhase = v?.phase; }
+  if (!v?.legal?.propose) S.proposeDraft = null;
   // показать закрытую взятку ещё немного
   if (v?.play && prev?.play && v.play.trickNo > prev.play.trickNo && v.play.lastTrick) {
     S.lastTrickShow = { trick: v.play.lastTrick, until: Date.now() + 1400 };
@@ -262,7 +263,9 @@ function actionsHtml() {
       const ready = S.discardSel.size === 2 && (mis || S.contractSel);
       return `<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
         ${mis ? '' : bidGrid(l.contracts, 'contract', S.contractSel)}
-        <button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button>`;
+        <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button>
+        ${l.withoutThree ? `<button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? 'Точно без трёх?' : '🏳️ Без трёх'}</button>` : ''}</div>
+        ${S.confirmW3 ? `<div class="hint">Сдаётесь без розыгрыша: гора ${3 * gameValue(v.bidding.highest.bid)}, противникам — висты. Нажмите ещё раз для подтверждения.</div>` : ''}`;
     }
     case 'whisting':
       if (!l.whist.length) return wait(`<b>${name(t)}</b> решает: вист или пас`);
@@ -272,9 +275,19 @@ function actionsHtml() {
       if (!l.whistMode) return wait(`<b>${name(t)}</b> выбирает, как вистовать`);
       return `<div class="msg">Вистуете один. Как играем?</div>
         <div class="row"><button class="btn" data-act="wmode" data-open="1">В открытую</button><button class="btn ghost" data-act="wmode" data-open="0">В закрытую</button></div>`;
-    case 'play':
-      if (l.playSeat == null) return wait(`Ходит <b>${name(v.play.turn)}</b>`);
-      return wait(l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`);
+    case 'play': {
+      const pr = v.play.proposal;
+      if (pr) {
+        const list = v.players.map((p, s) => `${name(s)} <b>+${pr.tricks[s]}</b>`).join(' · ');
+        const head = `<div class="msg">🤝 ${pr.by === v.seat ? 'Вы предлагаете' : `<b>${name(pr.by)}</b> предлагает (карты открыты)`}:<br>${list}</div>`;
+        if (l.answerProposal) return head + '<div class="row"><button class="btn" data-act="answer" data-a="1">✅ Согласен</button><button class="btn ghost" data-act="answer" data-a="0">❌ Играем</button></div>';
+        if (pr.by === v.seat) return head + '<div class="msg hint">Ждём ответа…</div><button class="btn small ghost" data-act="unpropose">Отозвать</button>';
+        return head + '<div class="msg hint">Ждём остальных…</div>';
+      }
+      if (S.proposeDraft) return proposeHtml();
+      const turn = l.playSeat == null ? `Ходит <b>${name(v.play.turn)}</b>` : l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`;
+      return `<div class="row" style="align-items:center"><div class="msg">${turn}</div>${l.propose ? '<button class="btn small ghost" data-act="propose">🤝 Предложить</button>' : ''}</div>`;
+    }
     case 'dealEnd': {
       const r = v.lastResult;
       return `<div class="result"><h3>${esc(r.title)}</h3>${r.lines.map((x) => `<div>${esc(x)}</div>`).join('')}</div>
@@ -288,6 +301,25 @@ function actionsHtml() {
   }
   return '';
 }
+
+// Редактор предложения: сколько из оставшихся взяток получит каждый
+function proposeHtml() {
+  const v = S.view;
+  const d = S.proposeDraft;
+  // пока набирали, кто-то доиграл взятку — начинаем заново
+  if (d.reduce((a, b) => a + b, 0) > v.play.remaining) { d.fill(0); d[v.seat] = v.play.remaining; }
+  const left = v.play.remaining - d.reduce((a, b) => a + b, 0);
+  const rows = v.players.map((p, s) => `<div class="prop-row"><span>${esc(p.name)}${s === v.seat ? ' (вы)' : ''}</span>
+    <button class="btn small ghost" data-act="pstep" data-s="${s}" data-d="-1" ${d[s] ? '' : 'disabled'}>−</button>
+    <b>${d[s]}</b>
+    <button class="btn small ghost" data-act="pstep" data-s="${s}" data-d="1" ${left ? '' : 'disabled'}>+</button></div>`).join('');
+  return `<div class="msg">🤝 Как разойтись по оставшимся <b>${v.play.remaining}</b> взяткам?</div>${rows}
+    <div class="hint">${left ? `Осталось распределить: ${left}` : 'Ваши карты откроются остальным, пока они решают.'}</div>
+    <div class="row"><button class="btn" data-act="psend" ${left ? 'disabled' : ''}>Предложить</button><button class="btn ghost" data-act="pcancel">Отмена</button></div>`;
+}
+
+const GAME_VALUE = { 6: 2, 7: 4, 8: 6, 9: 8, 10: 10 };
+const gameValue = (bid) => GAME_VALUE[parseInt(bid, 10)] || 0;
 
 function bidGrid(legal, kind, selected) {
   const ok = new Set(legal);
@@ -444,6 +476,24 @@ document.addEventListener('click', (e) => {
     case 'whist': send({ t: 'act', action: { type: 'whist', choice: d.c } }); break;
     case 'wmode': send({ t: 'act', action: { type: 'whistMode', open: d.open === '1' } }); break;
     case 'next': send({ t: 'act', action: { type: 'nextDeal' } }); break;
+    case 'w3':
+      if (!S.confirmW3) { S.confirmW3 = true; render(); break; }
+      S.confirmW3 = false;
+      send({ t: 'act', action: { type: 'withoutThree' } });
+      break;
+    case 'propose': {
+      // по умолчанию все оставшиеся взятки — себе, дальше подвинуть кнопками
+      const draft = [0, 0, 0];
+      draft[S.view.seat] = S.view.play.remaining;
+      S.proposeDraft = draft;
+      render();
+      break;
+    }
+    case 'pstep': S.proposeDraft[Number(d.s)] += Number(d.d); render(); break;
+    case 'pcancel': S.proposeDraft = null; render(); break;
+    case 'psend': send({ t: 'act', action: { type: 'propose', tricks: S.proposeDraft } }); S.proposeDraft = null; break;
+    case 'answer': send({ t: 'act', action: { type: 'answerProposal', accept: d.a === '1' } }); break;
+    case 'unpropose': send({ t: 'act', action: { type: 'cancelProposal' } }); break;
     case 'invite': {
       const url = `https://t.me/share/url?url=${encodeURIComponent(S.link)}&text=${encodeURIComponent('Садись за пулю!')}`;
       tg ? tg.openTelegramLink(url) : window.open(url);
