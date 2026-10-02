@@ -172,7 +172,17 @@ function doDiscard(state, seat, cards, contract) {
   say(state, `${state.players[seat].name} заказал ${bidLabel(contract)}.`);
   if (contract === 'MIS') return startPlay(state, 'misere');
   const a = next(seat);
-  state.whist = { order: [a, next(a)], answers: {}, turn: a, halfBy: null, whisters: [], open: null };
+  state.whist = { order: [a, next(a)], answers: {}, turn: a, halfBy: null, whisters: [], open: null, forced: false };
+  if (contract === '6S' && state.config.stalingrad) {
+    // Сталинград: оба вистуют без вопросов
+    state.whist.answers = { [a]: 'WHIST', [next(a)]: 'WHIST' };
+    state.whist.whisters = [a, next(a)];
+    state.whist.open = false;
+    state.whist.forced = true;
+    state.whist.turn = null;
+    say(state, 'Сталинград: на 6♠ вистуют оба.');
+    return startPlay(state, 'game');
+  }
   state.phase = 'whisting';
 }
 
@@ -513,7 +523,7 @@ function settle(state, { kind }) {
         const dt = tricks[a] + tricks[b];
         sc.whists[ws][d] += v * dt;
         lines.push(`${name(ws)} (вист): ${dt} взят. → висты +${v * dt}`);
-        if (cfg.responsibleWhist && got >= need && dt < O) {
+        if (cfg.responsibleWhist && !w.forced && got >= need && dt < O) {
           const pen = (v / 2) * (O - dt);
           sc.mountain[ws] += pen;
           lines.push(`${name(ws)}: недовист ${O - dt} → гора +${pen}`);
@@ -523,7 +533,7 @@ function settle(state, { kind }) {
           sc.whists[s][d] += v * tricks[s];
           lines.push(`${name(s)} (вист): ${tricks[s]} взят. → висты +${v * tricks[s]}`);
         }
-        if (cfg.responsibleWhist && got >= need) {
+        if (cfg.responsibleWhist && !w.forced && got >= need) {
           // каждый отвечает за свою половину; на 8–9 (обязательство 1) отвечает второй вистующий
           const own = O >= 2 ? [[a, O / 2], [b, O / 2]] : [[b, O]];
           for (const [s, need2] of own) {
@@ -624,7 +634,7 @@ export function viewFor(state, seat) {
     dealNo: state.dealNo,
     dealer: state.dealer,
     players: state.players,
-    config: { poolTarget: state.config.poolTarget, raspasExit: state.config.raspasExit || '6' },
+    config: { poolTarget: state.config.poolTarget, raspasExit: state.config.raspasExit || '6', stalingrad: !!state.config.stalingrad },
     minLevel: minLevel(state),
     raspasStreak: state.raspasStreak || 0,
     score: state.score,

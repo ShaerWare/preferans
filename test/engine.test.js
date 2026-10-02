@@ -293,3 +293,55 @@ test('выход с распасов: прогрессия 7 → 8 → 8', () =>
   for (let k = 0; k < 4; k++) { raspasDeal(s); seen.push(minBid(s)); }
   assert.deepEqual(seen, ['7S', '8S', '8S', '8S']);
 });
+
+function orderGame(s, contract) {
+  act(s, 1, { type: 'bid', bid: contract });
+  act(s, 2, { type: 'bid', bid: 'PASS' });
+  act(s, 0, { type: 'bid', bid: 'PASS' });
+  act(s, 1, { type: 'discard', cards: s.hands[1].slice(0, 2), contract });
+}
+
+test('Сталинград: на 6♠ оба вистуют сразу, в закрытую', () => {
+  const s = game({ stalingrad: true });
+  orderGame(s, '6S');
+  assert.equal(s.phase, 'play');
+  assert.deepEqual(s.whist.whisters, [2, 0]);
+  assert.equal(s.whist.open, false);
+  assert.deepEqual(s.play.open, []);
+  // играющий забирает все взятки — за недовист обязательные вистующие не отвечают
+  act(s, 1, { type: 'propose', declTricks: 10 });
+  act(s, 2, { type: 'answerProposal', accept: true });
+  act(s, 0, { type: 'answerProposal', accept: true });
+  assert.deepEqual(s.score.mountain, [0, 0, 0]);
+  assert.equal(s.score.pool[1], 2);
+});
+
+test('Сталинград касается только 6♠', () => {
+  const s = game({ stalingrad: true });
+  orderGame(s, '6C');
+  assert.equal(s.phase, 'whisting');
+});
+
+test('без Сталинграда на 6♠ — обычный вист', () => {
+  const s = game();
+  orderGame(s, '6S');
+  assert.equal(s.phase, 'whisting');
+});
+
+test('уйти за полвиста можно и на семерной', () => {
+  const s = game();
+  orderGame(s, '7S');
+  act(s, 2, { type: 'whist', choice: 'PASS' });
+  assert.ok(viewFor(s, 0).legal.whist.includes('HALF'));
+  act(s, 0, { type: 'whist', choice: 'HALF' });
+  act(s, 2, { type: 'whist', choice: 'PASS' });
+  assert.equal(s.score.pool[1], 4);
+  assert.equal(s.score.whists[0][1], 4); // 4 × (2 / 2)
+});
+
+test('на восьмерной полвиста нет', () => {
+  const s = game();
+  orderGame(s, '8S');
+  act(s, 2, { type: 'whist', choice: 'PASS' });
+  assert.ok(!viewFor(s, 0).legal.whist.includes('HALF'));
+});

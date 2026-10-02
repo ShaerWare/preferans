@@ -225,8 +225,9 @@ export class Tables {
     if (t.game && t.game.phase !== 'gameOver') throw new Error('Партия уже идёт');
     const poolTarget = [10, 20, 30, 50].includes(Number(config.poolTarget)) ? Number(config.poolTarget) : 20;
     const raspasExit = RASPAS_EXIT[config.raspasExit] ? String(config.raspasExit) : '6';
-    t.game = createGame({ players: t.seats, config: { poolTarget, raspasExit }, dealer: Math.floor(Math.random() * 3) });
-    const exitText = raspasExit === '6' ? '' : `, выход с распасов ${RASPAS_EXIT[raspasExit].label}`;
+    const stalingrad = config.stalingrad === true;
+    t.game = createGame({ players: t.seats, config: { poolTarget, raspasExit, stalingrad }, dealer: Math.floor(Math.random() * 3) });
+    const exitText = (raspasExit === '6' ? '' : `, выход с распасов ${RASPAS_EXIT[raspasExit].label}`) + (stalingrad ? ', Сталинград' : '');
     this.pushChat(t, { system: true, text: `Новая пуля до ${poolTarget}${exitText}. ${t.game.log.at(-1)}` });
     this.save();
     this.emit(t, { type: 'update' });

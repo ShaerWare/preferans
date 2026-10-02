@@ -36,10 +36,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #call-banner { background: #7a1d22; text-align: center; padding: 5px; font-size: 13px; }
 #call-banner a { color: #fff; font-weight: 600; }
 
-#screen { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; padding: 0 16px calc(8px + var(--safe-bottom)); }
+#screen { flex: 1; min-width: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; min-height: 0; padding: 0 16px calc(8px + var(--safe-bottom)); }
 
 /* --- лобби --- */
-.lobby { margin: auto 0; display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; }
+.lobby { margin: auto 0; padding-block: 12px; display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; }
 .lobby h2 { margin: 0; }
 .seats { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .seat-box { width: 100px; padding: 12px 6px; border-radius: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; align-items: center; }
