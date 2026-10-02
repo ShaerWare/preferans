@@ -13,6 +13,7 @@ const AI_LABEL = { novice: 'Новичок', amateur: 'Любитель', pro: '
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
 };
 
 const S = {
@@ -36,7 +37,11 @@ if (tg) {
 function connect() {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
   S.ws = ws;
-  ws.onopen = () => send({ t: 'hello', initData: tg?.initData || '', dev: DEV_NAME, tableId: S.tableId });
+  // сервер сам вернёт в активную партию; lastTableId — запасной вариант с этого устройства
+  ws.onopen = () => send({
+    t: 'hello', initData: tg?.initData || '', dev: DEV_NAME,
+    tableId: S.tableId, lastTableId: store.get('tableId'), noResume: S.noResume,
+  });
   ws.onclose = () => setTimeout(connect, 1500);
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
 }
@@ -47,7 +52,7 @@ function onMessage(m) {
     case 'welcome':
       S.me = m.me;
       S.tableId = m.tableId;
-      if (DEV_NAME && m.tableId) history.replaceState(null, '', `?dev=${encodeURIComponent(DEV_NAME)}&table=${m.tableId}`);
+      rememberTable(m.tableId);
       if (!m.tableId) render();
       break;
     case 'state': onState(m); break;
@@ -122,6 +127,7 @@ function noTableHtml() {
     <div class="hint">Лучше всего играть из группы: создайте группу с двумя друзьями, добавьте туда бота и отправьте <b>/newgame</b>. Тогда рядом с игрой будут чат и видеозвонок группы.</div>
     <div>Уровень ИИ:</div>${levelSeg()}
     ${settingsHtml()}
+    ${S.noResume ? '<button class="btn ghost" data-act="resume">↩️ Вернуться к игре</button>' : ''}
     <div class="row"><button class="btn" data-act="solo">🤖 Сыграть с ИИ</button><button class="btn ghost" data-act="create">Создать стол</button></div>
   </div>`;
 }
@@ -398,7 +404,29 @@ function layoutHand() {
 }
 window.addEventListener('resize', layoutHand);
 
+// Стол запоминается в адресе (переживает перезагрузку) и на устройстве.
+// Хеш с данными Telegram (#tgWebAppData…) не трогаем.
+function rememberTable(id) {
+  if (id) store.set('tableId', id); else store.del('tableId');
+  try {
+    const u = new URL(location.href);
+    if (id) u.searchParams.set('table', id); else u.searchParams.delete('table');
+    history.replaceState(null, '', u.toString());
+  } catch {}
+}
+
 // ---------- пулька ----------
+// Кнопки внизу пульки: уйти в меню (партия останется) и досрочно закончить игру против ИИ
+function tableMenuHtml() {
+  if (!S.table) return '';
+  const v = S.view;
+  const me = S.table.seats.findIndex((s) => s?.id === S.me?.id);
+  const solo = me !== -1 && S.table.seats.every((s, i) => i === me || s?.bot);
+  const canFinish = solo && v && v.phase !== 'gameOver';
+  return `<button class="btn ghost small" data-act="leave">🚪 В меню</button>
+    ${canFinish ? `<button class="btn small ${S.confirmFinish ? 'danger' : 'ghost'}" data-act="finish">${S.confirmFinish ? 'Точно закончить?' : '🏳️ Закончить пулю'}</button>` : ''}`;
+}
+
 function renderScore() {
   const v = S.view;
   if (!v) { $('#score-body').innerHTML = '<div class="hint">Партия ещё не началась</div>'; return; }
@@ -414,7 +442,8 @@ function renderScore() {
     <tr><td colspan="9" class="hint" style="text-align:left">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}` : ''}</td></tr>
     <tr><th></th><th>Пуля</th><th>Гора</th>${whistCols}<th>${v.final ? 'Итог' : 'Сейчас'}</th></tr>${rows}</table></div>
     <div class="hint" style="margin-top:6px">«Сейчас» — сколько вистов каждый выиграл бы, если расписать прямо сейчас.</div>
-    <div class="history">${hist}</div>`;
+    <div class="history">${hist}</div>
+    <div class="row" style="margin-top:12px">${tableMenuHtml()}</div>`;
 }
 
 // ---------- чат ----------
@@ -475,14 +504,32 @@ document.addEventListener('click', (e) => {
   }
   const d = el.dataset;
   switch (d.act) {
-    case 'create': send({ t: 'create' }); break;
+    case 'create': S.noResume = false; send({ t: 'create' }); break;
     case 'sit': send({ t: 'sit', seat: Number(d.seat) }); break;
     case 'stand': send({ t: 'stand' }); break;
     case 'pool': S.poolTarget = Number(d.n); store.set('poolTarget', d.n); render(); break;
     case 'rexit': S.raspasExit = d.k; store.set('raspasExit', d.k); render(); break;
     case 'start': send({ t: 'start', config: poolConfig() }); break;
     case 'level': S.aiLevel = d.l; store.set('aiLevel', d.l); render(); break;
-    case 'solo': send({ t: 'create', bots: S.aiLevel, config: poolConfig() }); break;
+    case 'solo': S.noResume = false; send({ t: 'create', bots: S.aiLevel, config: poolConfig() }); break;
+    case 'resume':
+      S.noResume = false;
+      send({ t: 'hello', initData: tg?.initData || '', dev: DEV_NAME, lastTableId: store.get('tableId') });
+      break;
+    case 'leave':
+      S.noResume = true; // не возвращать автоматически, пока сам не выберет стол
+      S.table = null; S.view = null; S.chat = [];
+      rememberTable(null);
+      $('#score-panel').hidden = true;
+      send({ t: 'leave' });
+      render();
+      break;
+    case 'finish':
+      if (!S.confirmFinish) { S.confirmFinish = true; renderScore(); break; }
+      S.confirmFinish = false;
+      $('#score-panel').hidden = true;
+      send({ t: 'finish' });
+      break;
     case 'addBot': send({ t: 'addBot', seat: Number(d.seat), level: S.aiLevel }); break;
     case 'removeBot': send({ t: 'removeBot', seat: Number(d.seat) }); break;
     case 'fillBots': send({ t: 'fillBots', level: S.aiLevel, config: poolConfig() }); break;

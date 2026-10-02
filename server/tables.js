@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { createGame, act, viewFor } from './engine.js';
+import { createGame, act, viewFor, finishEarly } from './engine.js';
 import { decide, actingSeats, AI_LEVELS, AI_NAMES } from './ai.js';
 import { bidLabel, RASPAS_EXIT } from './rules.js';
 
@@ -39,6 +39,7 @@ export class Tables {
   }
 
   emit(table, event) {
+    if (event.type === 'update') table.updatedAt = Date.now();
     for (const fn of this.listeners) fn(table, event);
     if (event.type === 'update') this.scheduleAI(table);
   }
@@ -156,6 +157,43 @@ export class Tables {
     let found = null;
     for (const t of this.tables.values()) if (t.chatId === chatId && (!found || t.createdAt > found.createdAt)) found = t;
     return found;
+  }
+
+// Куда вернуть игрока, открывшего игру без ссылки на стол: идущая партия, затем лобби
+  activeFor(userId) {
+    let best = null;
+    const rank = (t) => (t.game && t.game.phase !== 'gameOver' ? 2 : !t.game ? 1 : 0);
+    for (const t of this.tables.values()) {
+      if (this.seatOf(t, userId) === -1 || rank(t) === 0) continue;
+      const key = [rank(t), t.updatedAt || t.createdAt];
+      if (!best || key[0] > best.key[0] || (key[0] === best.key[0] && key[1] > best.key[1])) best = { t, key };
+    }
+    return best?.t || null;
+  }
+
+  // Какой стол открыть при входе
+  resolveTable(userId, explicitId, lastId) {
+    const explicit = explicitId && this.get(explicitId);
+    // по свежей ссылке — туда, если стол ещё живой
+    if (explicit && explicit.game?.phase !== 'gameOver') return explicit;
+    const active = this.activeFor(userId);
+    if (active) return active;
+    if (explicit) return explicit;
+    const last = lastId && this.get(lastId);
+    return last && this.seatOf(last, userId) !== -1 ? last : null;
+  }
+
+  // Против одних ботов пулю можно закончить в любой момент
+  finish(t, user) {
+    const seat = this.requireSeated(t, user);
+    if (!t.game) throw new Error('Партия не началась');
+    if (t.seats.some((s, i) => i !== seat && !s.bot)) throw new Error('Досрочно закончить можно только игру против ИИ');
+    finishEarly(t.game);
+    const g = t.game;
+    const lines = g.players.map((p, s) => `${p.name}: ${g.final[s] > 0 ? '+' : ''}${g.final[s]}`);
+    this.pushChat(t, { system: true, text: `🏁 Пуля закончена досрочно\n${lines.join('\n')}` });
+    this.save();
+    this.emit(t, { type: 'update' });
   }
 
   seatOf(t, userId) { return t.seats.findIndex((s) => s && s.id === userId); }

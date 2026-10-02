@@ -73,3 +73,65 @@ test('игра с ИИ через сервер', { timeout: 180000 }, async () =
     srv.kill();
   }
 });
+
+test('после перезагрузки возвращает в активную партию', { timeout: 60000 }, async () => {
+  const port = PORT + 1;
+  const srv = spawn(process.execPath, ['server/index.js'], {
+    env: { ...process.env, PORT: String(port), DEV: '1', BOT_TOKEN: '', AI_DELAY: '5', DATA_FILE: path.join(os.tmpdir(), `pref-e2e-resume-${port}.json`) },
+    stdio: 'pipe',
+  });
+  // одно «открытие» Mini App: соединяемся, шлём hello, ждём welcome (и state, если есть стол)
+  const open = async (hello) => {
+    const ws = new WebSocket(`ws://localhost:${port}/ws`);
+    const msgs = [];
+    const waiters = new Set();
+    ws.on('message', (raw) => { const m = JSON.parse(raw); msgs.push(m); for (const w of waiters) w(m); });
+    await new Promise((r) => ws.on('open', r));
+    const next = (pred) => new Promise((res) => {
+      const found = msgs.find(pred);
+      if (found) return res(found);
+      const w = (m) => { if (pred(m)) { waiters.delete(w); res(m); } };
+      waiters.add(w);
+    });
+    ws.send(JSON.stringify({ t: 'hello', dev: 'Перезагрузка', ...hello }));
+    const welcome = await next((m) => m.t === 'welcome');
+    return { ws, welcome, next, send: (o) => ws.send(JSON.stringify(o)) };
+  };
+  try {
+    await new Promise((res) => srv.stdout.on('data', (d) => String(d).includes('[http]') && res()));
+    const a = await open({});
+    assert.equal(a.welcome.tableId, null);
+    a.send({ t: 'create', bots: 'novice' });
+    const s1 = await a.next((m) => m.t === 'state' && m.view);
+    const id = s1.table.id;
+    a.ws.close();
+
+    // открыли из меню бота — без номера стола
+    const b = await open({});
+    assert.equal(b.welcome.tableId, id);
+    const s2 = await b.next((m) => m.t === 'state');
+    assert.ok(s2.view && s2.view.phase !== 'gameOver');
+
+    // «В меню» — не возвращаем, пока сам не попросит
+    b.send({ t: 'leave' });
+    await b.next((m) => m.t === 'welcome' && m.tableId === null);
+    b.ws.close();
+    const c = await open({ noResume: true });
+    assert.equal(c.welcome.tableId, null);
+    c.ws.close();
+
+    // «Вернуться к игре» / новое открытие — снова в партию; досрочно заканчиваем
+    const d = await open({});
+    assert.equal(d.welcome.tableId, id);
+    d.send({ t: 'finish' });
+    await d.next((m) => m.t === 'state' && m.view?.phase === 'gameOver');
+    d.ws.close();
+
+    // закрытая пуля не держит: открываем — попадаем в меню
+    const e = await open({});
+    assert.equal(e.welcome.tableId, null);
+    e.ws.close();
+  } finally {
+    srv.kill();
+  }
+});

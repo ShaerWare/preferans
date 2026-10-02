@@ -9,7 +9,7 @@ function seeded(seed) {
 const players = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
 
 // Боты играют пулю сами с собой; любое недопустимое действие бросит исключение в act()
-function playPool(levels, seed, poolTarget = 10) {
+function playPool(levels, seed, poolTarget = 10, { proposals = false } = {}) {
   const rng = seeded(seed);
   const g = createGame({ players, config: { poolTarget }, dealer: seed % 3, rng });
   let guard = 0;
@@ -17,7 +17,7 @@ function playPool(levels, seed, poolTarget = 10) {
     if (++guard > 5000) throw new Error('пуля не закончилась');
     if (g.phase === 'dealEnd') { act(g, 0, { type: 'nextDeal' }); continue; }
     // иногда первый игрок предлагает «поровну», боты должны ответить
-    if (g.phase === 'play' && !g.play.proposal && rng() < 0.02) {
+    if (proposals && g.phase === 'play' && !g.play.proposal && rng() < 0.02) {
       const rem = 10 - g.play.trickNo;
       act(g, 0, { type: 'propose', tricks: [rem - 2 * Math.floor(rem / 3), Math.floor(rem / 3), Math.floor(rem / 3)] });
       continue;
@@ -30,7 +30,7 @@ function playPool(levels, seed, poolTarget = 10) {
 
 test('боты всех уровней доигрывают пулю без ошибок', () => {
   for (const [i, lv] of [['novice', 'novice', 'novice'], ['amateur', 'pro', 'master'], ['master', 'master', 'novice']].entries()) {
-    const g = playPool(lv, 7 + i);
+    const g = playPool(lv, 7 + i, 10, { proposals: true });
     assert.deepEqual(g.score.pool, [10, 10, 10]);
   }
 });

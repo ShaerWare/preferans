@@ -522,6 +522,16 @@ function settle(state, { kind }) {
   }
 }
 
+// Закончить пулю досрочно: расписываем по текущему счёту (недописанная пуля идёт в гору)
+export function finishEarly(state) {
+  if (state.phase === 'gameOver') throw new GameError('Пуля уже закрыта');
+  state._events = [];
+  state.phase = 'gameOver';
+  state.final = finalBalance(state);
+  say(state, 'Пуля закончена досрочно. ' + state.final.map((x, s) => `${state.players[s].name}: ${x > 0 ? '+' : ''}${x}`).join(', '));
+  state._events = [];
+}
+
 // Итог в вистах: гора (и недописанная пуля) переводится в висты, затем сальдо по вистам.
 export function finalBalance(state) {
   const { pool, mountain, whists } = state.score;

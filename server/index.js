@@ -95,8 +95,9 @@ function handle(client, msg) {
     }
     if (!auth) throw new Error('Не удалось проверить вход через Telegram');
     client.user = auth.user;
-    const tableId = msg.tableId || auth.startParam;
-    client.tableId = tableId && tables.get(tableId) ? tableId : null;
+    // ссылка на стол (?table= или start_param) → иначе активная партия игрока → иначе последний стол
+    const t0 = msg.noResume ? null : tables.resolveTable(client.user.id, msg.tableId || auth.startParam, msg.lastTableId);
+    client.tableId = t0?.id || null;
     send(client.ws, { t: 'welcome', me: client.user, tableId: client.tableId });
     if (client.tableId) {
       const t = tables.get(client.tableId);
@@ -137,6 +138,12 @@ function handle(client, msg) {
     case 'removeBot': tables.removeBot(t, client.user, msg.seat); break;
     case 'takeover': tables.takeover(t, client.user, msg.seat, msg.level); break;
     case 'reclaim': tables.reclaim(t, client.user); break;
+    case 'finish': tables.finish(t, client.user); break;
+    case 'leave': // «В меню»: отключаемся от стола, партия остаётся
+      client.tableId = null;
+      presenceChanged({ ...client, tableId: t.id });
+      send(client.ws, { t: 'welcome', me: client.user, tableId: null });
+      break;
     case 'act': tables.act(t, client.user, msg.action); break;
     case 'chat': {
       const text = String(msg.text || '').trim().slice(0, 500);
