@@ -29,9 +29,10 @@ export function validateInitData(initData, botToken, maxAgeSec = 7 * 24 * 3600) 
 }
 
 export class Bot {
-  constructor(token, { onUpdate } = {}) {
+  constructor(token, { onUpdate, webAppUrl } = {}) {
     this.token = token;
     this.onUpdate = onUpdate;
+    this.webAppUrl = webAppUrl;
     this.offset = 0;
     this.me = null;
   }
@@ -63,8 +64,29 @@ export class Bot {
         { command: 'help', description: 'Как играть' },
       ],
     }).catch(() => {});
+    await this.setup().catch((e) => console.error('[bot] настройка профиля:', e.message));
     console.log(`[bot] @${this.me.username} запущен`);
     this.loop();
+  }
+
+  // Профиль бота настраивается сам при каждом запуске — в BotFather руками ничего не нужно
+  async setup() {
+    if (this.webAppUrl) {
+      await this.call('setChatMenuButton', {
+        menu_button: { type: 'web_app', text: '🃏 Играть', web_app: { url: this.webAppUrl } },
+      });
+    }
+    await this.call('setMyShortDescription', {
+      short_description: 'Преферанс «Сочинка» на троих: с друзьями в группе или против ИИ',
+    });
+    await this.call('setMyDescription', {
+      description: [
+        'Преферанс «Сочинка» прямо в Telegram.',
+        '',
+        '🤖 Один — жмите «Играть» и садитесь против ИИ (от новичка до мастера).',
+        '👥 С друзьями — создайте группу на троих, добавьте меня и напишите /newgame. Видеочат группы работает во время игры.',
+      ].join('\n'),
+    });
   }
 
   async loop() {

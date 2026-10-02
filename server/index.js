@@ -212,7 +212,7 @@ async function onUpdate(u) {
 }
 
 if (BOT_TOKEN) {
-  bot = new Bot(BOT_TOKEN, { onUpdate });
+  bot = new Bot(BOT_TOKEN, { onUpdate, webAppUrl: WEBAPP_URL });
   bot.start().catch((e) => console.error('[bot] не запустился:', e.message));
 } else {
   console.warn('[bot] BOT_TOKEN не задан — бот выключен');
