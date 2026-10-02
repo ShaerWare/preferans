@@ -137,12 +137,10 @@ test('случайные партии доигрываются до конца',
       } else if (s.phase === 'play' && s.play.proposal) {
         const who = [0, 1, 2].find((x) => viewFor(s, x).legal.answerProposal);
         act(s, who, { type: 'answerProposal', accept: rng() < 0.5 });
-      } else if (s.phase === 'play' && rng() < 0.03) {
-        // кто-нибудь предлагает случайный расклад оставшихся взяток
-        const rem = 10 - s.play.trickNo;
-        const a = Math.floor(rng() * (rem + 1));
-        const b = Math.floor(rng() * (rem - a + 1));
-        act(s, Math.floor(rng() * 3), { type: 'propose', tricks: [a, b, rem - a - b] });
+      } else if (s.phase === 'play' && s.play.kind !== 'raspas' && rng() < 0.03) {
+        // кто-нибудь предлагает, сколько возьмёт играющий
+        const opts = viewFor(s, 0).legal.proposeOptions;
+        act(s, Math.floor(rng() * 3), { type: 'propose', declTricks: pick(opts) });
       } else if (s.phase === 'play') {
         const seat = s.play.controller[s.play.turn];
         const v = viewFor(s, seat);
@@ -202,14 +200,17 @@ function toPlay() {
 test('«предложить»: все согласны — раздача считается сразу', () => {
   const s = toPlay();
   assert.equal(s.phase, 'play');
-  assert.throws(() => act(s, 1, { type: 'propose', tricks: [1, 1, 1] }), GameError); // не 10
-  act(s, 1, { type: 'propose', tricks: [2, 6, 2] });
+  assert.deepEqual(viewFor(s, 1).legal.proposeOptions, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.throws(() => act(s, 1, { type: 'propose', declTricks: 11 }), GameError);
+  act(s, 1, { type: 'propose', declTricks: 6 });
+  assert.match(viewFor(s, 0).play.proposal.text, /берёт 6 — своя игра/);
   assert.deepEqual(viewFor(s, 1).legal.cards, []); // пока ждём ответа — не ходим
   assert.throws(() => act(s, 1, { type: 'answerProposal', accept: true }), GameError); // сам себе не отвечает
   act(s, 2, { type: 'answerProposal', accept: true });
   assert.equal(s.phase, 'play');
   act(s, 0, { type: 'answerProposal', accept: true });
   assert.equal(s.phase, 'dealEnd');
+  // защите 4 взятки — поровну
   assert.deepEqual(s.lastResult.tricks, [2, 6, 2]);
   assert.equal(s.score.pool[1], 2);
   assert.equal(s.score.whists[0][1], 4);
@@ -217,13 +218,32 @@ test('«предложить»: все согласны — раздача сч�
 
 test('«предложить»: отказ — играем дальше', () => {
   const s = toPlay();
-  act(s, 0, { type: 'propose', tricks: [5, 3, 2] });
+  act(s, 0, { type: 'propose', declTricks: 5 });
+  assert.match(viewFor(s, 1).play.proposal.text, /берёт 5 — без 1/);
+  // 5 взяток защиты: по 2, лишняя тому, у кого меньше (пока у обоих 0 — первому)
+  assert.deepEqual(s.play.proposal.tricks, [2, 5, 3]);
   act(s, 1, { type: 'answerProposal', accept: false });
   assert.equal(s.play.proposal, null);
   assert.ok(viewFor(s, s.play.controller[s.play.turn]).legal.cards.length > 0);
-  act(s, 2, { type: 'propose', tricks: [5, 3, 2] });
+  act(s, 2, { type: 'propose', declTricks: 7 });
+  assert.ok(viewFor(s, 0).play.proposal.text.endsWith('берёт 7 — 7 (+1)'));
   act(s, 2, { type: 'cancelProposal' });
   assert.equal(s.play.proposal, null);
+});
+
+test('«предложить»: на распасах нет, на мизере — «чистый»', () => {
+  const s = game();
+  for (let k = 0; k < 3; k++) act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  assert.equal(viewFor(s, 0).legal.propose, false);
+  assert.throws(() => act(s, 0, { type: 'propose', declTricks: 0 }), GameError);
+
+  const m = game();
+  act(m, 1, { type: 'bid', bid: 'MIS' });
+  act(m, 2, { type: 'bid', bid: 'PASS' });
+  act(m, 0, { type: 'bid', bid: 'PASS' });
+  act(m, 1, { type: 'discard', cards: m.hands[1].slice(0, 2), contract: 'MIS' });
+  act(m, 1, { type: 'propose', declTricks: 0 });
+  assert.match(viewFor(m, 0).play.proposal.text, /чистый мизер/);
 });
 
 // Сыграть текущую раздачу распасами (все пас, ходим первой допустимой картой)

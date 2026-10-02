@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, act, newDeck } from '../server/engine.js';
+import { createGame, act, newDeck, proposeOptions } from '../server/engine.js';
 import { decide, actorSeat, actingSeats } from '../server/ai.js';
 
 function seeded(seed) {
@@ -17,9 +17,9 @@ function playPool(levels, seed, poolTarget = 10, { proposals = false } = {}) {
     if (++guard > 5000) throw new Error('пуля не закончилась');
     if (g.phase === 'dealEnd') { act(g, 0, { type: 'nextDeal' }); continue; }
     // иногда первый игрок предлагает «поровну», боты должны ответить
-    if (proposals && g.phase === 'play' && !g.play.proposal && rng() < 0.02) {
-      const rem = 10 - g.play.trickNo;
-      act(g, 0, { type: 'propose', tricks: [rem - 2 * Math.floor(rem / 3), Math.floor(rem / 3), Math.floor(rem / 3)] });
+    if (proposals && g.phase === 'play' && g.play.kind !== 'raspas' && !g.play.proposal && rng() < 0.02) {
+      const opts = proposeOptions(g);
+      act(g, 0, { type: 'propose', declTricks: opts[Math.floor(opts.length / 2)] });
       continue;
     }
     const seat = actingSeats(g)[0];
@@ -83,11 +83,11 @@ test('боты отвечают на предложения разумно', () 
   act(g, 1, { type: 'whist', choice: 'WHIST' });
   act(g, 2, { type: 'whist', choice: 'WHIST' });
   // «беру все» — правда, защита соглашается
-  act(g, 0, { type: 'propose', tricks: [10, 0, 0] });
+  act(g, 0, { type: 'propose', declTricks: 10 });
   assert.equal(decide(g, 1, 'master', rng).accept, true);
   act(g, 0, { type: 'cancelProposal' });
   // защита просит 5 взяток при очевидных 10 у играющего — играющий отказывается
-  act(g, 1, { type: 'propose', tricks: [5, 3, 2] });
+  act(g, 1, { type: 'propose', declTricks: 5 });
   assert.equal(decide(g, 0, 'master', rng).accept, false);
 });
 

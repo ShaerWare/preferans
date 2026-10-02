@@ -339,21 +339,38 @@ export function proposalPending(state) {
   return [0, 1, 2].filter((s) => s !== pr.by && pr.answers[s] == null);
 }
 
-function doPropose(state, seat, tricks) {
+// Предлагают только итог играющего: сколько всего он возьмёт («своя игра», «без одной», …).
+// Остальные взятки — защите: при двух вистующих поровну, лишняя тому, у кого пока меньше.
+export function proposeOptions(state) {
   const p = state.play;
-  if (state.phase !== 'play') throw new GameError('Предлагать можно только во время розыгрыша');
-  if (p.proposal) throw new GameError('Уже есть предложение');
-  const rem = remainingTricks(state);
-  if (!Array.isArray(tricks) || tricks.length !== 3 || !tricks.every((x) => Number.isInteger(x) && x >= 0)
-    || tricks.reduce((a, b) => a + b, 0) !== rem) {
-    throw new GameError(`Нужно распределить ровно ${rem} взят.`);
-  }
-  p.proposal = { by: seat, tricks: [...tricks], answers: {} };
-  say(state, `${state.players[seat].name} предлагает: ${proposalText(state, tricks)}`);
+  if (state.phase !== 'play' || p.kind === 'raspas') return [];
+  const have = p.tricks[state.declarer];
+  return Array.from({ length: remainingTricks(state) + 1 }, (_, i) => have + i);
 }
 
-function proposalText(state, tricks) {
-  return [0, 1, 2].map((s) => `${state.players[s].name} +${tricks[s]}`).join(', ');
+function doPropose(state, seat, declTotal) {
+  const p = state.play;
+  if (state.phase !== 'play') throw new GameError('Предлагать можно только во время розыгрыша');
+  if (p.kind === 'raspas') throw new GameError('На распасах предлагать нечего');
+  if (p.proposal) throw new GameError('Уже есть предложение');
+  if (!proposeOptions(state).includes(declTotal)) throw new GameError('Столько взяток у играющего быть не может');
+  const d = state.declarer;
+  const tricks = [0, 0, 0];
+  tricks[d] = declTotal - p.tricks[d];
+  const def = remainingTricks(state) - tricks[d];
+  const [x, y] = [next(d), next(next(d))];
+  tricks[x] = tricks[y] = Math.floor(def / 2);
+  if (def % 2) tricks[p.tricks[x] <= p.tricks[y] ? x : y] += 1;
+  p.proposal = { by: seat, declTotal, tricks, answers: {} };
+  say(state, `${state.players[seat].name} предлагает: ${proposalText(state, declTotal)}`);
+}
+
+export function proposalText(state, n) {
+  const who = state.players[state.declarer].name;
+  if (state.play.kind === 'misere') return n === 0 ? `${who} — чистый мизер` : `${who} берёт ${n}`;
+  const L = bidLevel(state.contract);
+  const what = n === L ? 'своя игра' : n < L ? `без ${L - n}` : `${n} (+${n - L})`;
+  return `${who} берёт ${n} — ${what}`;
 }
 
 function doAnswerProposal(state, seat, accept) {
@@ -410,7 +427,26 @@ function addPool(state, seat, amount) {
   }
 }
 
+// Записи на листе, как ручкой на бумаге: каждое новое значение дописывается через точку.
+// trail.pool[i], trail.mountain[i], trail.whists[i][j] — последовательности значений.
+function scoreSnapshot(sc) {
+  return JSON.stringify([sc.pool, sc.mountain, sc.whists]);
+}
+function recordTrail(state, before) {
+  const sc = state.score;
+  const [pool0, mountain0, whists0] = JSON.parse(before);
+  const t = state.scoreTrail ||= {
+    pool: [[], [], []], mountain: [[], [], []], whists: [0, 1, 2].map(() => [[], [], []]),
+  };
+  for (const i of [0, 1, 2]) {
+    if (sc.pool[i] !== pool0[i]) t.pool[i].push(sc.pool[i]);
+    if (sc.mountain[i] !== mountain0[i]) t.mountain[i].push(sc.mountain[i]);
+    for (const j of [0, 1, 2]) if (sc.whists[i][j] !== whists0[i][j]) t.whists[i][j].push(sc.whists[i][j]);
+  }
+}
+
 function settle(state, { kind }) {
+  const before = scoreSnapshot(state.score);
   const sc = state.score;
   const cfg = state.config;
   const name = (s) => state.players[s].name;
@@ -507,6 +543,7 @@ function settle(state, { kind }) {
     : kind === 'misere' ? `Мизер — ${name(d)}`
     : kind === 'w3' ? `${bidLabel(state.contract)} без трёх — ${name(d)}`
     : `${bidLabel(state.contract)} — ${name(d)}`;
+  recordTrail(state, before);
   state.lastResult = { title, lines, tricks };
   state.history.push({ dealNo: state.dealNo, title, lines });
   say(state, `${title}. ${lines.join('; ')}`);
@@ -560,7 +597,7 @@ export function act(state, seat, action) {
     case 'whistMode': doWhistMode(state, seat, action.open); break;
     case 'play': doPlay(state, seat, action.card); break;
     case 'withoutThree': doWithoutThree(state, seat); break;
-    case 'propose': doPropose(state, seat, action.tricks); break;
+    case 'propose': doPropose(state, seat, Number(action.declTricks)); break;
     case 'answerProposal': doAnswerProposal(state, seat, !!action.accept); break;
     case 'cancelProposal': doCancelProposal(state, seat); break;
     case 'nextDeal':
@@ -591,6 +628,7 @@ export function viewFor(state, seat) {
     minLevel: minLevel(state),
     raspasStreak: state.raspasStreak || 0,
     score: state.score,
+    scoreTrail: state.scoreTrail || null,
     hands: [0, 1, 2].map((s) => (handVisible(s) ? state.hands[s] : null)),
     handCounts: state.hands.map((h) => h.length),
     talon: state.talonOpen ? state.talon : null,
@@ -611,7 +649,7 @@ export function viewFor(state, seat) {
       kind: p.kind, trump: p.trump, turn: p.turn, trick: p.trick, leadSuit: p.leadSuit,
       lastTrick: p.lastTrick, tricks: p.tricks, trickNo: p.trickNo, open: p.open,
       talonLead: p.kind === 'raspas' && state.config.raspasTalonLeads && p.trickNo < 2 ? state.talon[p.trickNo] : null,
-      proposal: p.proposal || null,
+      proposal: p.proposal ? { ...p.proposal, text: proposalText(state, p.proposal.declTotal) } : null,
       remaining: 10 - p.trickNo,
     },
     legal: {
@@ -624,7 +662,8 @@ export function viewFor(state, seat) {
       controls,
       withoutThree: state.phase === 'talon' && seat === state.declarer && state.config.allowWithoutThree !== false
         && state.bidding.highest.bid !== 'MIS',
-      propose: seat != null && state.phase === 'play' && !p.proposal,
+      propose: seat != null && state.phase === 'play' && !p.proposal && p.kind !== 'raspas',
+      proposeOptions: seat != null && state.phase === 'play' && !p.proposal ? proposeOptions(state) : [],
       answerProposal: seat != null && proposalPending(state).includes(seat),
     },
     lastResult: state.lastResult,

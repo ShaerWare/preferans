@@ -72,7 +72,8 @@ function onState(m) {
   S.table = m.table; S.view = m.view; S.link = m.link;
   const v = S.view;
   if (v?.phase !== S.lastPhase) { S.discardSel.clear(); S.contractSel = null; S.confirmW3 = false; S.lastPhase = v?.phase; }
-  if (!v?.legal?.propose) S.proposeDraft = null;
+  if (!v?.legal?.propose) S.proposeSel = null;
+  else if (S.proposeSel != null && !v.legal.proposeOptions.includes(S.proposeSel)) S.proposeSel = defaultProposal(v);
   // показать закрытую взятку ещё немного
   if (v?.play && prev?.play && v.play.trickNo > prev.play.trickNo && v.play.lastTrick) {
     S.lastTrickShow = { trick: v.play.lastTrick, until: Date.now() + 1400 };
@@ -304,13 +305,12 @@ function actionsHtml() {
     case 'play': {
       const pr = v.play.proposal;
       if (pr) {
-        const list = v.players.map((p, s) => `${name(s)} <b>+${pr.tricks[s]}</b>`).join(' · ');
-        const head = `<div class="msg">🤝 ${pr.by === v.seat ? 'Вы предлагаете' : `<b>${name(pr.by)}</b> предлагает (карты открыты)`}:<br>${list}</div>`;
+        const head = `<div class="msg">🤝 ${pr.by === v.seat ? 'Вы предлагаете' : `<b>${name(pr.by)}</b> предлагает (карты открыты)`}:<br><b>${esc(pr.text)}</b></div>`;
         if (l.answerProposal) return head + '<div class="row"><button class="btn" data-act="answer" data-a="1">✅ Согласен</button><button class="btn ghost" data-act="answer" data-a="0">❌ Играем</button></div>';
         if (pr.by === v.seat) return head + '<div class="msg hint">Ждём ответа…</div><button class="btn small ghost" data-act="unpropose">Отозвать</button>';
         return head + '<div class="msg hint">Ждём остальных…</div>';
       }
-      if (S.proposeDraft) return proposeHtml();
+      if (S.proposeSel != null) return proposeHtml();
       const turn = l.playSeat == null ? `Ходит <b>${name(v.play.turn)}</b>` : l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`;
       return `<div class="row" style="align-items:center"><div class="msg">${turn}</div>${l.propose ? '<button class="btn small ghost" data-act="propose">🤝 Предложить</button>' : ''}</div>`;
     }
@@ -328,20 +328,27 @@ function actionsHtml() {
   return '';
 }
 
-// Редактор предложения: сколько из оставшихся взяток получит каждый
+// Предложение — одно число: сколько всего возьмёт играющий
+function proposalLabel(v, n) {
+  if (v.play.kind === 'misere') return n === 0 ? 'чистый' : `поймали`;
+  const L = parseInt(v.contract, 10);
+  return n === L ? 'своя игра' : n < L ? `без ${L - n}` : `+${n - L}`;
+}
+
+function defaultProposal(v) {
+  const opts = v.legal.proposeOptions;
+  const want = v.play.kind === 'misere' ? 0 : parseInt(v.contract, 10);
+  return opts.includes(want) ? want : want < opts[0] ? opts[0] : opts[opts.length - 1];
+}
+
 function proposeHtml() {
   const v = S.view;
-  const d = S.proposeDraft;
-  // пока набирали, кто-то доиграл взятку — начинаем заново
-  if (d.reduce((a, b) => a + b, 0) > v.play.remaining) { d.fill(0); d[v.seat] = v.play.remaining; }
-  const left = v.play.remaining - d.reduce((a, b) => a + b, 0);
-  const rows = v.players.map((p, s) => `<div class="prop-row"><span>${esc(p.name)}${s === v.seat ? ' (вы)' : ''}</span>
-    <button class="btn small ghost" data-act="pstep" data-s="${s}" data-d="-1" ${d[s] ? '' : 'disabled'}>−</button>
-    <b>${d[s]}</b>
-    <button class="btn small ghost" data-act="pstep" data-s="${s}" data-d="1" ${left ? '' : 'disabled'}>+</button></div>`).join('');
-  return `<div class="msg">🤝 Как разойтись по оставшимся <b>${v.play.remaining}</b> взяткам?</div>${rows}
-    <div class="hint">${left ? `Осталось распределить: ${left}` : 'Ваши карты откроются остальным, пока они решают.'}</div>
-    <div class="row"><button class="btn" data-act="psend" ${left ? 'disabled' : ''}>Предложить</button><button class="btn ghost" data-act="pcancel">Отмена</button></div>`;
+  const who = v.declarer === v.seat ? 'Вы' : esc(v.players[v.declarer].name);
+  const btns = v.legal.proposeOptions.map((n) => `<button class="prop-opt ${S.proposeSel === n ? 'on' : ''}" data-act="psel" data-n="${n}"><b>${n}</b><small>${proposalLabel(v, n)}</small></button>`).join('');
+  return `<div class="msg">🤝 Сколько всего возьмёт ${v.declarer === v.seat ? '(вы)' : `<b>${who}</b>`}?</div>
+    <div class="prop-grid">${btns}</div>
+    <div class="hint">Ваши карты откроются остальным, пока они решают. Взятки защиты делятся поровну.</div>
+    <div class="row"><button class="btn" data-act="psend">Предложить: ${S.proposeSel} — ${proposalLabel(v, S.proposeSel)}</button><button class="btn ghost" data-act="pcancel">Отмена</button></div>`;
 }
 
 const GAME_VALUE = { 6: 2, 7: 4, 8: 6, 9: 8, 10: 10 };
@@ -427,21 +434,78 @@ function tableMenuHtml() {
     ${canFinish ? `<button class="btn small ${S.confirmFinish ? 'danger' : 'ghost'}" data-act="finish">${S.confirmFinish ? 'Точно закончить?' : '🏳️ Закончить пулю'}</button>` : ''}`;
 }
 
+// Лист пульки как на бумаге: кружок с размером пули в центре, сектор каждого игрока
+// у его края (я — снизу, партнёры — слева и справа). Снаружи висты, дальше пуля, у центра гора.
+const fmtNum = (x) => String(Math.round(x * 100) / 100);
+// Запись через точку «2.4.6.10»; если не влезает — оставляем хвост с «…», последнее число жирным
+function seqSvg(vals, maxPx, fs) {
+  if (!vals.length) return '';
+  const parts = vals.map(fmtNum);
+  const fits = (k) => (parts.slice(k).join('.').length + (k ? 1 : 0)) * fs * 0.56 <= maxPx;
+  let k = 0;
+  while (k < parts.length - 1 && !fits(k)) k++;
+  const head = parts.slice(k, -1).join('.');
+  return `${k ? '…' : ''}${head}${head ? '.' : ''}<tspan font-weight="700">${parts.at(-1)}</tspan>`;
+}
+
+function sheetSvg(v) {
+  const W = 340, H = 420, cx = W / 2, cy = H / 2, B1 = 40, B2 = 78, M = 22;
+  const me = v.seat ?? 0, L = (me + 1) % 3, R = (me + 2) % 3;
+  const sc = v.score, tr = v.scoreTrail;
+  // Старые партии без записей: показываем хотя бы текущее значение
+  const seq = (kind, i, j) => {
+    const t = j == null ? tr?.[kind]?.[i] : tr?.[kind]?.[i]?.[j];
+    if (t?.length) return t;
+    const cur = j == null ? sc[kind][i] : sc[kind][i][j];
+    return cur ? [cur] : [];
+  };
+  const bal = v.final || v.balance;
+  const name = (s) => `${esc(v.players[s].name)} <tspan class="${bal[s] >= 0 ? 'pos' : 'neg'}">${bal[s] > 0 ? '+' : ''}${fmtNum(bal[s])}</tspan>`;
+  const txt = (x, y, rot, body, cls = 'ink', fs = 13) =>
+    body ? `<text class="${cls}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" transform="translate(${x} ${y}) rotate(${rot})">${body}</text>` : '';
+  // ширина нижней полосы между диагоналями на высоте y
+  const span = (y) => 2 * ((cx * (y - cy)) / (H - cy));
+  const out = [];
+  // нижний — я
+  out.push(txt(cx / 2 + 6, H - B1 / 2, 0, seqSvg(seq('whists', me, L), cx - 24, 13)));
+  out.push(txt(cx + cx / 2 - 6, H - B1 / 2, 0, seqSvg(seq('whists', me, R), cx - 24, 13)));
+  out.push(txt(cx, H - (B1 + B2) / 2, 0, seqSvg(seq('pool', me), span(H - B2) - 16, 14)));
+  out.push(txt(cx, H - B2 - 16, 0, seqSvg(seq('mountain', me), span(H - B2 - 30) - 16, 14), 'ink red'));
+  // боковые: текст повёрнут к игроку (левый читает сверху вниз, правый — снизу вверх)
+  for (const [s, other, side] of [[L, R, -1], [R, L, 1]]) {
+    const X = (x) => (side < 0 ? x : W - x), rot = side < 0 ? 90 : -90;
+    const len = (x) => cy + (cx - x) * ((H - cy) / cx) - B1; // вертикальная длина полосы до диагонали
+    out.push(txt(X(B1 / 2), (B1 + cy + (cx - B1 / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('whists', s, me), len(B1 / 2) - 16, 13)));
+    out.push(txt(side < 0 ? (B1 + cx) / 2 : W - (B1 + cx) / 2, B1 / 2, 0, seqSvg(seq('whists', s, other), cx - B1 - 12, 12)));
+    out.push(txt(X((B1 + B2) / 2), (B1 + cy + (cx - (B1 + B2) / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('pool', s), len((B1 + B2) / 2) - 30, 14)));
+    out.push(txt(X(B2 + 16), (B2 + cy + (cx - B2 - 16) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('mountain', s), len(B2 + 16) - 60, 14), 'ink red'));
+  }
+  const ln = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  return `<svg class="pulka" viewBox="${-M} ${-M} ${W + 2 * M} ${H + 2 * M}" role="img" aria-label="Лист пульки">
+    <rect class="paper" x="0" y="0" width="${W}" height="${H}" rx="3"/>
+    <g class="grid">
+      <rect x="${B1}" y="${B1}" width="${W - 2 * B1}" height="${H - 2 * B1}" fill="none"/>
+      <rect x="${B2}" y="${B2}" width="${W - 2 * B2}" height="${H - 2 * B2}" fill="none"/>
+      ${ln(cx, 0, cx, cy)}${ln(0, H, cx, cy)}${ln(W, H, cx, cy)}
+      ${ln(cx, H - B1, cx, H)}${ln(0, 0, B1, B1)}${ln(W, 0, W - B1, B1)}
+    </g>
+    <circle class="paper grid" cx="${cx}" cy="${cy}" r="26"/>
+    <text class="ink" x="${cx}" y="${cy}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="central">${v.config.poolTarget}</text>
+    ${out.join('')}
+    ${txt(cx, H + M / 2 + 1, 0, name(me), 'nm', 13)}
+    ${txt(-M / 2, cy, 90, name(L), 'nm', 13)}
+    ${txt(W + M / 2, cy, -90, name(R), 'nm', 13)}
+  </svg>`;
+}
+
 function renderScore() {
   const v = S.view;
   if (!v) { $('#score-body').innerHTML = '<div class="hint">Партия ещё не началась</div>'; return; }
-  const sc = v.score;
-  const names = v.players.map((p) => esc(p.name));
-  const bal = v.final || v.balance;
-  const whistCols = [0, 1, 2].map((j) => `<th>вист на ${names[j]}</th>`).join('');
-  const rows = [0, 1, 2].map((i) => `<tr><td><b>${names[i]}</b></td><td>${sc.pool[i]}/${v.config.poolTarget}</td><td>${sc.mountain[i]}</td>
-    ${[0, 1, 2].map((j) => `<td>${i === j ? '—' : sc.whists[i][j]}</td>`).join('')}
-    <td class="${bal[i] >= 0 ? 'pos' : 'neg'}"><b>${bal[i] > 0 ? '+' : ''}${bal[i]}</b></td></tr>`).join('');
   const hist = [...v.history].reverse().map((h) => `<div><b>№${h.dealNo} ${esc(h.title)}</b> — ${esc(h.lines.join('; '))}</div>`).join('');
-  $('#score-body').innerHTML = `<div style="overflow-x:auto"><table class="sheet-table">
-    <tr><td colspan="9" class="hint" style="text-align:left">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}` : ''}</td></tr>
-    <tr><th></th><th>Пуля</th><th>Гора</th>${whistCols}<th>${v.final ? 'Итог' : 'Сейчас'}</th></tr>${rows}</table></div>
-    <div class="hint" style="margin-top:6px">«Сейчас» — сколько вистов каждый выиграл бы, если расписать прямо сейчас.</div>
+  $('#score-body').innerHTML = `<div class="hint">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}` : ''}</div>
+    ${sheetSvg(v)}
+    <div class="hint">Снаружи — висты (каждая половина — на соседа с той стороны), дальше пуля, у кружка — гора.
+      Число у имени — ${v.final ? 'итог в вистах' : 'сколько выиграл бы, если расписать сейчас'}.</div>
     <div class="history">${hist}</div>
     <div class="row" style="margin-top:12px">${tableMenuHtml()}</div>`;
 }
@@ -550,17 +614,10 @@ document.addEventListener('click', (e) => {
       S.confirmW3 = false;
       send({ t: 'act', action: { type: 'withoutThree' } });
       break;
-    case 'propose': {
-      // по умолчанию все оставшиеся взятки — себе, дальше подвинуть кнопками
-      const draft = [0, 0, 0];
-      draft[S.view.seat] = S.view.play.remaining;
-      S.proposeDraft = draft;
-      render();
-      break;
-    }
-    case 'pstep': S.proposeDraft[Number(d.s)] += Number(d.d); render(); break;
-    case 'pcancel': S.proposeDraft = null; render(); break;
-    case 'psend': send({ t: 'act', action: { type: 'propose', tricks: S.proposeDraft } }); S.proposeDraft = null; break;
+    case 'propose': S.proposeSel = defaultProposal(S.view); render(); break;
+    case 'psel': S.proposeSel = Number(d.n); render(); break;
+    case 'pcancel': S.proposeSel = null; render(); break;
+    case 'psend': send({ t: 'act', action: { type: 'propose', declTricks: S.proposeSel } }); S.proposeSel = null; break;
     case 'answer': send({ t: 'act', action: { type: 'answerProposal', accept: d.a === '1' } }); break;
     case 'unpropose': send({ t: 'act', action: { type: 'cancelProposal' } }); break;
     case 'invite': {
