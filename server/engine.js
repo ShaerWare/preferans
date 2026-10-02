@@ -2,7 +2,7 @@
 // createGame → act(state, seat, action) → viewFor(state, seat).
 import {
   SUITS, RANKS, BIDS, SUIT_SYMBOL, DEFAULT_CONFIG,
-  bidIndex, bidLevel, bidTrump, bidLabel,
+  bidIndex, bidLevel, bidTrump, bidLabel, minBidLevel,
 } from './rules.js';
 
 export class GameError extends Error {}
@@ -39,6 +39,7 @@ export function createGame({ players, config = {}, dealer = 0, rng }) {
       whists: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], // whists[i][j] — висты i на j
     },
     history: [],
+    raspasStreak: 0, // сколько распасов подряд — для «выхода с распасов»
     log: [],
   };
   startDeal(state, rng);
@@ -75,18 +76,24 @@ export function startDeal(state, rng) {
     log: [],
   };
   say(state, `Раздача №${state.dealNo}. Сдаёт ${state.players[state.dealer].name}, первый ход у ${state.players[first].name}.`);
+  const min = minLevel(state);
+  if (min > 6) say(state, `Выход с распасов: торгуемся с ${min}♠ (мизер можно).`);
 }
 
 // ---------- Торговля ----------
+
+export const minLevel = (state) => minBidLevel(state.config.raspasExit, state.raspasStreak || 0);
 
 export function legalBids(state, seat) {
   const b = state.bidding;
   if (state.phase !== 'bidding' || b.turn !== seat) return [];
   const res = ['PASS'];
   const hi = b.highest ? bidIndex(b.highest.bid) : -1;
+  const min = minLevel(state);
   for (const bid of BIDS) {
     const i = bidIndex(bid);
     if (i <= hi) continue;
+    if (bid !== 'MIS' && bidLevel(bid) < min) continue; // выход с распасов
     if (bid === 'MIS' && b.hasBid[seat]) continue; // мизер — только первым словом
     res.push(bid);
   }
@@ -504,6 +511,8 @@ function settle(state, { kind }) {
   state.history.push({ dealNo: state.dealNo, title, lines });
   say(state, `${title}. ${lines.join('; ')}`);
 
+  state.raspasStreak = kind === 'raspas' ? (state.raspasStreak || 0) + 1 : 0;
+
   if (sc.pool.every((p) => p >= cfg.poolTarget)) {
     state.phase = 'gameOver';
     state.final = finalBalance(state);
@@ -568,7 +577,9 @@ export function viewFor(state, seat) {
     dealNo: state.dealNo,
     dealer: state.dealer,
     players: state.players,
-    config: { poolTarget: state.config.poolTarget },
+    config: { poolTarget: state.config.poolTarget, raspasExit: state.config.raspasExit || '6' },
+    minLevel: minLevel(state),
+    raspasStreak: state.raspasStreak || 0,
     score: state.score,
     hands: [0, 1, 2].map((s) => (handVisible(s) ? state.hands[s] : null)),
     handCounts: state.hands.map((h) => h.length),

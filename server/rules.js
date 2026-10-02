@@ -27,8 +27,28 @@ export const DEFAULT_CONFIG = {
   // «Без трёх»: играющий, увидев прикуп, сдаётся. Ему — гора 3×стоимость, каждому противнику —
   // висты за «без трёх» (3×стоимость) и за свою половину взяток защиты (10 − (заказ − 3)) / 2.
   allowWithoutThree: true,
+  // Выход с распасов — с какой игры начинается торговля после распасов подряд:
+  //   '6'     — без ограничений
+  //   '7'     — после распасов с 7♠
+  //   'prog9' — прогрессия: 1-е распасы → с 7, 2-е → с 8, дальше → с 9
+  //   'prog8' — прогрессия: 1-е распасы → с 7, со 2-х и дальше → с 8
+  // Мизер разрешён всегда.
+  raspasExit: '6',
   whistPointsPerPool: 10, // перевод пули/горы в висты при расчёте
 };
+
+export const RASPAS_EXIT = {
+  6: { label: '6', steps: [6] },
+  7: { label: '7', steps: [6, 7] },
+  prog9: { label: '7 → 8 → 9', steps: [6, 7, 8, 9] },
+  prog8: { label: '7 → 8 → 8', steps: [6, 7, 8] },
+};
+
+// С какого уровня можно торговаться после streak распасов подряд
+export function minBidLevel(exit, streak) {
+  const steps = (RASPAS_EXIT[exit] || RASPAS_EXIT[6]).steps;
+  return steps[Math.min(streak, steps.length - 1)];
+}
 
 export const bidLabel = (b) => {
   if (b === 'PASS') return 'пас';

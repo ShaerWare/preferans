@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createGame, act, viewFor } from './engine.js';
 import { decide, actingSeats, AI_LEVELS, AI_NAMES } from './ai.js';
-import { bidLabel } from './rules.js';
+import { bidLabel, RASPAS_EXIT } from './rules.js';
 
 const CHAT_LIMIT = 200;
 
@@ -186,11 +186,13 @@ export class Tables {
     for (const s of t.seats) if (!s.bot) s.ai = null;
     if (t.game && t.game.phase !== 'gameOver') throw new Error('Партия уже идёт');
     const poolTarget = [10, 20, 30, 50].includes(Number(config.poolTarget)) ? Number(config.poolTarget) : 20;
-    t.game = createGame({ players: t.seats, config: { poolTarget }, dealer: Math.floor(Math.random() * 3) });
-    this.pushChat(t, { system: true, text: `Новая пуля до ${poolTarget}. ${t.game.log.at(-1)}` });
+    const raspasExit = RASPAS_EXIT[config.raspasExit] ? String(config.raspasExit) : '6';
+    t.game = createGame({ players: t.seats, config: { poolTarget, raspasExit }, dealer: Math.floor(Math.random() * 3) });
+    const exitText = raspasExit === '6' ? '' : `, выход с распасов ${RASPAS_EXIT[raspasExit].label}`;
+    this.pushChat(t, { system: true, text: `Новая пуля до ${poolTarget}${exitText}. ${t.game.log.at(-1)}` });
     this.save();
     this.emit(t, { type: 'update' });
-    this.emit(t, { type: 'announce', text: `🃏 Пуля до ${poolTarget} началась: ${t.seats.map((s) => s.name).join(', ')}` });
+    this.emit(t, { type: 'announce', text: `🃏 Пуля до ${poolTarget}${exitText} началась: ${t.seats.map((s) => s.name).join(', ')}` });
   }
 
   act(t, user, action) {

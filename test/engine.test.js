@@ -225,3 +225,51 @@ test('«предложить»: отказ — играем дальше', () =>
   act(s, 2, { type: 'cancelProposal' });
   assert.equal(s.play.proposal, null);
 });
+
+// Сыграть текущую раздачу распасами (все пас, ходим первой допустимой картой)
+function raspasDeal(s) {
+  for (let k = 0; k < 3; k++) act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  while (s.phase === 'play') act(s, s.play.turn, { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  act(s, 0, { type: 'nextDeal' });
+}
+const minBid = (s) => legalBids(s, s.bidding.turn).find((b) => b !== 'PASS' && b !== 'MIS');
+
+test('выход с распасов: 6 — без ограничений', () => {
+  const s = game();
+  raspasDeal(s);
+  assert.equal(minBid(s), '6S');
+});
+
+test('выход с распасов: 7 — после распасов с 7♠, мизер можно', () => {
+  const s = game({ raspasExit: '7' });
+  assert.equal(minBid(s), '6S');
+  raspasDeal(s);
+  assert.equal(minBid(s), '7S');
+  assert.ok(legalBids(s, s.bidding.turn).includes('MIS'));
+  raspasDeal(s);
+  assert.equal(minBid(s), '7S');
+});
+
+test('выход с распасов: прогрессия 7 → 8 → 9 и сброс после игры', () => {
+  const s = game({ raspasExit: 'prog9' });
+  const seen = [];
+  for (let k = 0; k < 4; k++) { raspasDeal(s); seen.push(minBid(s)); }
+  assert.deepEqual(seen, ['7S', '8S', '9S', '9S']);
+  // кто-то играет девятерную — счётчик распасов сбрасывается
+  act(s, s.bidding.turn, { type: 'bid', bid: '9S' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  const d = s.declarer;
+  act(s, d, { type: 'discard', cards: s.hands[d].slice(0, 2), contract: '9S' });
+  act(s, s.whist.turn, { type: 'whist', choice: 'PASS' });
+  act(s, s.whist.turn, { type: 'whist', choice: 'PASS' });
+  act(s, 0, { type: 'nextDeal' });
+  assert.equal(minBid(s), '6S');
+});
+
+test('выход с распасов: прогрессия 7 → 8 → 8', () => {
+  const s = game({ raspasExit: 'prog8' });
+  const seen = [];
+  for (let k = 0; k < 4; k++) { raspasDeal(s); seen.push(minBid(s)); }
+  assert.deepEqual(seen, ['7S', '8S', '8S', '8S']);
+});

@@ -18,7 +18,7 @@ const store = {
 const S = {
   ws: null, me: null, tableId: qs.get('table') || tg?.initDataUnsafe?.start_param || null,
   table: null, view: null, link: null, chat: [], unread: 0,
-  discardSel: new Set(), contractSel: null, poolTarget: 20, aiLevel: store.get('aiLevel') || 'pro',
+  discardSel: new Set(), contractSel: null, poolTarget: Number(store.get('poolTarget')) || 20, raspasExit: store.get('raspasExit') || '6', aiLevel: store.get('aiLevel') || 'pro',
   lastTrickShow: null, prevTrickNo: null, wasMyTurn: false, lastPhase: null,
 };
 
@@ -121,6 +121,7 @@ function noTableHtml() {
     <h2>🃏 Преферанс «Сочинка»</h2>
     <div class="hint">Лучше всего играть из группы: создайте группу с двумя друзьями, добавьте туда бота и отправьте <b>/newgame</b>. Тогда рядом с игрой будут чат и видеозвонок группы.</div>
     <div>Уровень ИИ:</div>${levelSeg()}
+    ${settingsHtml()}
     <div class="row"><button class="btn" data-act="solo">🤖 Сыграть с ИИ</button><button class="btn ghost" data-act="create">Создать стол</button></div>
   </div>`;
 }
@@ -143,13 +144,32 @@ function lobbyHtml() {
   return `<div class="lobby">
     <h2>Собираем пулю</h2>
     <div class="seats">${seats}</div>
-    <div>Пуля до: <span class="seg">${[10, 20, 30].map((n) => `<button data-act="pool" data-n="${n}" class="${S.poolTarget === n ? 'on' : ''}">${n}</button>`).join('')}</span></div>
+    ${settingsHtml()}
     <div>Уровень ИИ:</div>${levelSeg()}
     ${full
       ? `<button class="btn" data-act="start" ${mine !== -1 ? '' : 'disabled'}>Начать игру</button>`
       : `<button class="btn" data-act="fillBots" ${mine !== -1 ? '' : 'disabled'}>Добавить ИИ на свободные места и начать</button>`}
     ${inviteHtml()}
   </div>`;
+}
+
+const RASPAS_EXIT = { 6: '6', 7: '7', prog9: '7 → 8 → 9', prog8: '7 → 8 → 8' };
+const RASPAS_EXIT_HINT = {
+  6: 'После распасов торгуемся как обычно, с 6♠.',
+  7: 'После распасов торговля начинается с 7♠.',
+  prog9: 'После 1-х распасов подряд — с 7♠, после 2-х — с 8♠, дальше — с 9♠.',
+  prog8: 'После 1-х распасов подряд — с 7♠, после 2-х и дальше — с 8♠.',
+};
+
+// Настройки пули: размер и выход с распасов (мизер разрешён всегда)
+const poolConfig = () => ({ poolTarget: S.poolTarget, raspasExit: S.raspasExit });
+
+function settingsHtml() {
+  const pool = [10, 20, 30].map((n) => `<button data-act="pool" data-n="${n}" class="${S.poolTarget === n ? 'on' : ''}">${n}</button>`).join('');
+  const exit = Object.entries(RASPAS_EXIT).map(([k, l]) => `<button data-act="rexit" data-k="${k}" class="${S.raspasExit === k ? 'on' : ''}">${l}</button>`).join('');
+  return `<div>Пуля до: <span class="seg">${pool}</span></div>
+    <div>Выход с распасов:</div><span class="seg">${exit}</span>
+    <div class="hint">${RASPAS_EXIT_HINT[S.raspasExit]} Мизер можно всегда.</div>`;
 }
 
 function levelSeg() {
@@ -224,7 +244,7 @@ function centerHtml() {
   else if (v.contract && v.play) {
     const ws = v.whist.whisters.map((s) => esc(v.players[s].name)).join(' и ');
     info = `${esc(v.players[v.declarer].name)}: ${bidHtml(v.contract)} · вист: ${ws}${v.whist.whisters.length === 1 ? (v.whist.open ? ' (в открытую)' : ' (в закрытую)') : ''}`;
-  } else if (v.phase === 'bidding') info = `Раздача №${v.dealNo} · торговля`;
+  } else if (v.phase === 'bidding') info = `Раздача №${v.dealNo} · торговля${v.minLevel > 6 ? ` с ${v.minLevel}♠ (выход с распасов)` : ''}`;
 
   let inner = '';
   if (v.phase === 'bidding') {
@@ -296,7 +316,7 @@ function actionsHtml() {
     case 'gameOver': {
       const rows = v.players.map((p, s) => `<div>${esc(p.name)}: <b class="${v.final[s] >= 0 ? 'pos' : 'neg'}">${v.final[s] > 0 ? '+' : ''}${v.final[s]}</b></div>`).join('');
       return `<div class="result"><h3>🏁 Пуля закрыта</h3>${rows}</div>
-        ${v.seat != null ? '<button class="btn" data-act="start">Новая пуля</button>' : ''}`;
+        ${v.seat != null ? settingsHtml() + '<button class="btn" data-act="start">Новая пуля</button>' : ''}`;
     }
   }
   return '';
@@ -391,6 +411,7 @@ function renderScore() {
     <td class="${bal[i] >= 0 ? 'pos' : 'neg'}"><b>${bal[i] > 0 ? '+' : ''}${bal[i]}</b></td></tr>`).join('');
   const hist = [...v.history].reverse().map((h) => `<div><b>№${h.dealNo} ${esc(h.title)}</b> — ${esc(h.lines.join('; '))}</div>`).join('');
   $('#score-body').innerHTML = `<div style="overflow-x:auto"><table class="sheet-table">
+    <tr><td colspan="9" class="hint" style="text-align:left">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}` : ''}</td></tr>
     <tr><th></th><th>Пуля</th><th>Гора</th>${whistCols}<th>${v.final ? 'Итог' : 'Сейчас'}</th></tr>${rows}</table></div>
     <div class="hint" style="margin-top:6px">«Сейчас» — сколько вистов каждый выиграл бы, если расписать прямо сейчас.</div>
     <div class="history">${hist}</div>`;
@@ -457,13 +478,14 @@ document.addEventListener('click', (e) => {
     case 'create': send({ t: 'create' }); break;
     case 'sit': send({ t: 'sit', seat: Number(d.seat) }); break;
     case 'stand': send({ t: 'stand' }); break;
-    case 'pool': S.poolTarget = Number(d.n); render(); break;
-    case 'start': send({ t: 'start', config: { poolTarget: S.poolTarget } }); break;
+    case 'pool': S.poolTarget = Number(d.n); store.set('poolTarget', d.n); render(); break;
+    case 'rexit': S.raspasExit = d.k; store.set('raspasExit', d.k); render(); break;
+    case 'start': send({ t: 'start', config: poolConfig() }); break;
     case 'level': S.aiLevel = d.l; store.set('aiLevel', d.l); render(); break;
-    case 'solo': send({ t: 'create', bots: S.aiLevel, config: { poolTarget: S.poolTarget } }); break;
+    case 'solo': send({ t: 'create', bots: S.aiLevel, config: poolConfig() }); break;
     case 'addBot': send({ t: 'addBot', seat: Number(d.seat), level: S.aiLevel }); break;
     case 'removeBot': send({ t: 'removeBot', seat: Number(d.seat) }); break;
-    case 'fillBots': send({ t: 'fillBots', level: S.aiLevel, config: { poolTarget: S.poolTarget } }); break;
+    case 'fillBots': send({ t: 'fillBots', level: S.aiLevel, config: poolConfig() }); break;
     case 'takeover': send({ t: 'takeover', seat: Number(d.seat), level: S.aiLevel }); break;
     case 'reclaim': send({ t: 'reclaim' }); break;
     case 'bid': send({ t: 'act', action: { type: 'bid', bid: d.b } }); break;
