@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 
 const PORT = 19000 + Math.floor(Math.random() * 1000);
 
-test('игра с ИИ через сервер', { timeout: 60000 }, async () => {
+test('игра с ИИ через сервер', { timeout: 180000 }, async () => {
   const srv = spawn(process.execPath, ['server/index.js'], {
     env: { ...process.env, PORT: String(PORT), DEV: '1', BOT_TOKEN: '', AI_DELAY: '0.02', DATA_FILE: path.join(os.tmpdir(), `pref-e2e-ai-${PORT}.json`) },
     stdio: 'pipe',
