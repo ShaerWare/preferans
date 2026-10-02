@@ -69,8 +69,15 @@ function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); 
 
 function appLink(tableId) {
   if (!bot?.me) return null;
-  const base = APP_SHORT_NAME ? `https://t.me/${bot.me.username}/${APP_SHORT_NAME}` : `https://t.me/${bot.me.username}`;
-  return `${base}?startapp=${tableId}`;
+  if (APP_SHORT_NAME) return `https://t.me/${bot.me.username}/${APP_SHORT_NAME}?startapp=${tableId}`;
+  // без Mini App в BotFather: ссылка в личку боту, он пришлёт кнопку с этим столом
+  return `https://t.me/${bot.me.username}?start=t_${tableId}`;
+}
+
+function tableUrl(tableId) {
+  const u = new URL(WEBAPP_URL);
+  u.searchParams.set('table', tableId);
+  return u.toString();
 }
 
 function sendState(client) {
@@ -164,6 +171,16 @@ async function onUpdate(u) {
   const isGroup = chat.type === 'group' || chat.type === 'supergroup';
   const text = m.text || '';
   const cmd = text.startsWith('/') ? text.split(/[\s@]/)[0].toLowerCase() : null;
+
+  // /start t_<id> — пришли по кнопке «Играть» из группы
+  const startTable = cmd === '/start' && !isGroup && WEBAPP_URL ? text.split(/\s+/)[1]?.match(/^t_([\w-]+)$/)?.[1] : null;
+  if (startTable) {
+    const t = tables.get(startTable);
+    if (!t) return bot.send(chat.id, 'Этот стол уже не найден. Попросите в группе новый: /newgame');
+    return bot.send(chat.id, `🃏 Стол${t.chatTitle ? ` группы «${t.chatTitle}»` : ''} готов. Жмите, чтобы сесть:`, {
+      reply_markup: { inline_keyboard: [[{ text: '▶️ Открыть стол', web_app: { url: tableUrl(t.id) } }]] },
+    });
+  }
 
   if (cmd === '/start' || cmd === '/help') {
     const help = [
