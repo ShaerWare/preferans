@@ -407,3 +407,33 @@ test('мизер: первый ловит сам — второй не спра�
   assert.deepEqual(viewFor(s, 2).legal.controls, [0, 2]);
   assert.deepEqual(viewFor(s, 0).legal.controls, []); // напарник сам не ходит
 });
+
+test('распасы: общие для всех взятки в гору не пишем', () => {
+  // доигрываем распасы так, чтобы взятки легли 3 / 4 / 3
+  let s = null;
+  for (let seed = 1; seed < 400 && !s; seed++) {
+    const g = createGame({ players, dealer: 0, rng: seeded(seed) });
+    for (let k = 0; k < 3; k++) act(g, g.bidding.turn, { type: 'bid', bid: 'PASS' });
+    while (g.phase === 'play') act(g, g.play.turn, { type: 'play', card: legalCards(g, g.play.turn)[0] });
+    if (Math.min(...g.lastResult.tricks) > 0) s = g;
+  }
+  assert.ok(s, 'не нашли распасы, где взяли все');
+  const t = s.lastResult.tricks;
+  const min = Math.min(...t);
+  assert.deepEqual(s.score.mountain, t.map((x) => x - min));
+  assert.equal(s.lastResult.lines[0], `Все взяли по ${min} — не пишем`);
+});
+
+test('распасы: если кто-то без взяток — пишем всё, ему +1 в пулю', () => {
+  let s = null;
+  for (let seed = 1; seed < 400 && !s; seed++) {
+    const g = createGame({ players, dealer: 0, rng: seeded(seed) });
+    for (let k = 0; k < 3; k++) act(g, g.bidding.turn, { type: 'bid', bid: 'PASS' });
+    while (g.phase === 'play') act(g, g.play.turn, { type: 'play', card: legalCards(g, g.play.turn)[0] });
+    if (g.lastResult.tricks.includes(0)) s = g;
+  }
+  assert.ok(s);
+  const t = s.lastResult.tricks;
+  assert.deepEqual(s.score.mountain, t);
+  t.forEach((x, i) => assert.equal(s.score.pool[i], x === 0 ? 1 : 0));
+});

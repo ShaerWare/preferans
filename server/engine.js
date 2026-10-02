@@ -505,11 +505,16 @@ function settle(state, { kind }) {
   const d = state.declarer;
 
   if (kind === 'raspas') {
+    // Взятки, которые взяли все трое, в гору не пишем: одинаковая гора у всех на расчёт не влияет.
+    // Например 3, 3 и 4 — в гору только 1 тому, у кого 4.
+    const common = Math.min(...tricks);
+    if (common > 0) lines.push(`Все взяли по ${common} — не пишем`);
     for (const s of [0, 1, 2]) {
       const t = tricks[s];
+      const m = (t - common) * cfg.raspasPrice;
       if (t > 0) {
-        sc.mountain[s] += t * cfg.raspasPrice;
-        lines.push(`${name(s)}: ${t} взят. → гора +${t * cfg.raspasPrice}`);
+        sc.mountain[s] += m;
+        lines.push(`${name(s)}: ${t} взят. → ${m ? `гора +${m}` : 'в гору ничего'}`);
       } else {
         if (cfg.raspasZeroBonus) addPool(state, s, cfg.raspasZeroBonus);
         lines.push(`${name(s)}: без взяток${cfg.raspasZeroBonus ? ` → пуля +${cfg.raspasZeroBonus}` : ''}`);
