@@ -64,6 +64,7 @@ export function startDeal(state, rng) {
   state.declarer = null;
   state.contract = null;
   state.whist = null;
+  state.catch = null;
   state.play = null;
   state.lastResult = null;
   state.phase = 'bidding';
@@ -170,7 +171,13 @@ function doDiscard(state, seat, cards, contract) {
   state.discard = cards;
   state.contract = contract;
   say(state, `${state.players[seat].name} заказал ${bidLabel(contract)}.`);
-  if (contract === 'MIS') return startPlay(state, 'misere');
+  if (contract === 'MIS') {
+    // ловящие по очереди решают, кто из них ловит (играет за обе руки)
+    const a = next(seat);
+    state.catch = { order: [a, next(a)], turn: a, declined: [], catcher: null };
+    state.phase = 'misereCatch';
+    return;
+  }
   const a = next(seat);
   state.whist = { order: [a, next(a)], answers: {}, turn: a, halfBy: null, whisters: [], open: null, forced: false };
   if (contract === '6S' && state.config.stalingrad) {
@@ -252,6 +259,25 @@ function startRaspas(state) {
   startPlay(state, 'raspas');
 }
 
+function doCatch(state, seat, take) {
+  const c = state.catch;
+  if (state.phase !== 'misereCatch' || c.turn !== seat) throw new GameError('Не ваш выбор');
+  const [a, b] = c.order;
+  const other = seat === a ? b : a;
+  if (take) {
+    c.catcher = seat;
+    say(state, `${state.players[seat].name}: ловлю мизер`);
+  } else {
+    c.declined.push(seat);
+    say(state, `${state.players[seat].name}: пусть ловит ${state.players[other].name}`);
+    if (seat === a) { c.turn = b; return; }
+    c.catcher = a; // отказались оба — ловит первый
+  }
+  c.turn = null;
+  say(state, `Мизер ловит ${state.players[c.catcher].name}.`);
+  startPlay(state, 'misere');
+}
+
 function startPlay(state, kind) {
   const trump = kind === 'game' ? bidTrump(state.contract) : 'N';
   const controller = [0, 1, 2];
@@ -261,6 +287,10 @@ function startPlay(state, kind) {
     const passer = state.whist.order.find((s) => s !== whister);
     controller[passer] = whister;
     open.push(whister, passer);
+  }
+  if (kind === 'misere' && state.catch?.catcher != null) {
+    const partner = state.catch.order.find((s) => s !== state.catch.catcher);
+    controller[partner] = state.catch.catcher;
   }
   state.play = {
     kind,
@@ -455,6 +485,16 @@ function recordTrail(state, before) {
   }
 }
 
+// Недобор у двух вистующих: если вместе взяли обязательное (на 6 — 4, на 7 — 2, на 8–9 — 1),
+// в гору никому, каждый пишет висты за свои взятки. Иначе в гору тот, кто не взял свою долю
+// (на 6 — по 2, на 7 — по 1; на 8–9 отвечает второй вистующий), но не больше общего недобора.
+export function whistShortfall(O, a, b, ta, tb) {
+  const team = O - ta - tb;
+  if (team <= 0) return [];
+  const own = O >= 2 ? [[a, O / 2 - ta], [b, O / 2 - tb]] : [[b, team]];
+  return own.filter(([, x]) => x > 0).map(([s, x]) => [s, Math.min(x, team)]);
+}
+
 function settle(state, { kind }) {
   const before = scoreSnapshot(state.score);
   const sc = state.score;
@@ -526,7 +566,7 @@ function settle(state, { kind }) {
         if (cfg.responsibleWhist && !w.forced && got >= need && dt < O) {
           const pen = (v / 2) * (O - dt);
           sc.mountain[ws] += pen;
-          lines.push(`${name(ws)}: недовист ${O - dt} → гора +${pen}`);
+          lines.push(`${name(ws)}: недобор виста ${O - dt} → гора +${pen}`);
         }
       } else {
         for (const s of [a, b]) {
@@ -534,15 +574,10 @@ function settle(state, { kind }) {
           lines.push(`${name(s)} (вист): ${tricks[s]} взят. → висты +${v * tricks[s]}`);
         }
         if (cfg.responsibleWhist && !w.forced && got >= need) {
-          // каждый отвечает за свою половину; на 8–9 (обязательство 1) отвечает второй вистующий
-          const own = O >= 2 ? [[a, O / 2], [b, O / 2]] : [[b, O]];
-          for (const [s, need2] of own) {
-            const sum = O >= 2 ? tricks[s] : tricks[a] + tricks[b];
-            if (sum < need2) {
-              const pen = (v / 2) * (need2 - sum);
-              sc.mountain[s] += pen;
-              lines.push(`${name(s)}: недовист ${need2 - sum} → гора +${pen}`);
-            }
+          for (const [s, short] of whistShortfall(O, a, b, tricks[a], tricks[b])) {
+            const pen = (v / 2) * short;
+            sc.mountain[s] += pen;
+            lines.push(`${name(s)}: недобор виста ${short} → гора +${pen}`);
           }
         }
       }
@@ -605,6 +640,7 @@ export function act(state, seat, action) {
       doDiscard(state, seat, action.cards, action.contract); break;
     case 'whist': doWhist(state, seat, action.choice); break;
     case 'whistMode': doWhistMode(state, seat, action.open); break;
+    case 'catch': doCatch(state, seat, !!action.take); break;
     case 'play': doPlay(state, seat, action.card); break;
     case 'withoutThree': doWithoutThree(state, seat); break;
     case 'propose': doPropose(state, seat, Number(action.declTricks)); break;
@@ -625,8 +661,9 @@ export function viewFor(state, seat) {
   const p = state.play;
   const openSeats = new Set(p ? p.open : []);
   if (p?.proposal) openSeats.add(p.proposal.by); // предлагая, игрок кладёт карты на стол
-  const handVisible = (s) => s === seat || openSeats.has(s) || state.phase === 'dealEnd' || state.phase === 'gameOver';
   const controls = p ? [0, 1, 2].filter((s) => p.controller[s] === seat) : seat != null ? [seat] : [];
+  // руку напарника, за которого ходишь, видишь всегда
+  const handVisible = (s) => s === seat || openSeats.has(s) || controls.includes(s) || state.phase === 'dealEnd' || state.phase === 'gameOver';
   const myTurnSeat = p && state.phase === 'play' && !p.proposal && p.controller[p.turn] === seat ? p.turn : null;
   return {
     phase: state.phase,
@@ -651,13 +688,14 @@ export function viewFor(state, seat) {
       highest: state.bidding.highest,
       log: state.bidding.log,
     },
+    catch: state.catch && { order: state.catch.order, turn: state.catch.turn, declined: state.catch.declined, catcher: state.catch.catcher },
     whist: state.whist && {
       order: state.whist.order, answers: state.whist.answers, turn: state.whist.turn,
       halfBy: state.whist.halfBy, whisters: state.whist.whisters, open: state.whist.open,
     },
     play: p && {
       kind: p.kind, trump: p.trump, turn: p.turn, trick: p.trick, leadSuit: p.leadSuit,
-      lastTrick: p.lastTrick, tricks: p.tricks, trickNo: p.trickNo, open: p.open,
+      lastTrick: p.lastTrick, tricks: p.tricks, trickNo: p.trickNo, open: p.open, controller: p.controller,
       talonLead: p.kind === 'raspas' && state.config.raspasTalonLeads && p.trickNo < 2 ? state.talon[p.trickNo] : null,
       proposal: p.proposal ? { ...p.proposal, text: proposalText(state, p.proposal.declTotal) } : null,
       remaining: 10 - p.trickNo,
@@ -667,6 +705,7 @@ export function viewFor(state, seat) {
       contracts: state.phase === 'talon' && seat === state.declarer ? legalContracts(state) : [],
       whist: seat != null && state.phase === 'whisting' ? legalWhist(state, seat) : [],
       whistMode: state.phase === 'whistMode' && state.whist.turn === seat,
+      catchChoice: state.phase === 'misereCatch' && seat != null && state.catch.turn === seat,
       cards: myTurnSeat != null ? legalCards(state, myTurnSeat) : [],
       playSeat: myTurnSeat,
       controls,

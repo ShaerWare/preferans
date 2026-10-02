@@ -6,7 +6,7 @@ const DEV_NAME = qs.get('dev');
 const SUIT = { S: '♠', C: '♣', D: '♦', H: '♥', N: 'БК' };
 const RED = new Set(['D', 'H']);
 const RANK_ORDER = '789TJQKA';
-const HAND_SUIT_ORDER = ['S', 'D', 'C', 'H']; // чередуем цвета
+const SUIT_SENIORITY = ['S', 'C', 'D', 'H']; // ♠ ♣ ♦ ♥ — старшинство
 const EMOTES = ['👍', '😂', '🔥', '😱', '🤬', '🤔', '👏', '🍺'];
 const WHIST_LABEL = { WHIST: 'вист', PASS: 'пас', HALF: 'полвиста' };
 const AI_LABEL = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профи', master: 'Мастер' };
@@ -90,7 +90,7 @@ function isMyTurn() {
   const v = S.view;
   if (!v || v.seat == null) return false;
   const l = v.legal;
-  return l.bids.length > 0 || l.contracts.length > 0 || l.whist.length > 0 || l.whistMode || l.playSeat != null;
+  return l.bids.length > 0 || l.contracts.length > 0 || l.whist.length > 0 || l.whistMode || l.catchChoice || l.playSeat != null;
 }
 
 // ---------- карты ----------
@@ -99,8 +99,22 @@ function cardHtml(c, { cls = '', attrs = '' } = {}) {
   const s = c.slice(-1);
   return `<div class="card ${RED.has(s) ? 'red' : ''} ${cls}" data-card="${c}" ${attrs}><span class="r">${r}</span><span class="s">${SUIT[s]}</span><span class="big">${SUIT[s]}</span></div>`;
 }
+// Масти идут по старшинству ♠ ♣ ♦ ♥, но на экране чередуем чёрные и красные (♠ ♦ ♣ ♥),
+// считая только масти, которые есть в руке. Козырь — первым, если это не ломает чередование.
+function suitDisplayOrder(present, trump) {
+  const ranked = (list) => [...list].sort((a, b) => (b === trump) - (a === trump) || SUIT_SENIORITY.indexOf(a) - SUIT_SENIORITY.indexOf(b));
+  const reds = ranked(present.filter((s) => RED.has(s)));
+  const blacks = ranked(present.filter((s) => !RED.has(s)));
+  let first = reds.length > blacks.length ? reds : blacks.length > reds.length ? blacks
+    : trump && RED.has(trump) && reds.includes(trump) ? reds : blacks;
+  const second = first === reds ? blacks : reds;
+  const out = [];
+  for (let i = 0; i < first.length; i++) out.push(first[i], ...(second[i] ? [second[i]] : []));
+  return out;
+}
 function sortHand(h, trump) {
-  const order = trump ? [trump, ...HAND_SUIT_ORDER.filter((s) => s !== trump)] : HAND_SUIT_ORDER;
+  const present = SUIT_SENIORITY.filter((s) => h.some((c) => c.slice(-1) === s));
+  const order = suitDisplayOrder(present, trump);
   return [...h].sort((a, b) => order.indexOf(a.slice(-1)) - order.indexOf(b.slice(-1)) || RANK_ORDER.indexOf(b[0]) - RANK_ORDER.indexOf(a[0]));
 }
 const bidLabel = (b) => (b === 'PASS' ? 'пас' : b === 'MIS' ? 'мизер' : `${parseInt(b, 10)}${SUIT[b.slice(-1)]}`);
@@ -204,6 +218,7 @@ function turnSeat() {
   if (v.phase === 'bidding') return v.bidding.turn;
   if (v.phase === 'talon') return v.declarer;
   if (v.phase === 'whisting' || v.phase === 'whistMode') return v.whist.turn;
+  if (v.phase === 'misereCatch') return v.catch.turn;
   if (v.phase === 'play') return v.play.turn;
   return null;
 }
@@ -222,6 +237,8 @@ function playerTags(s) {
   }
   if (v.whist?.answers?.[s]) tags.push(`<span class="tag">${WHIST_LABEL[v.whist.answers[s]]}</span>`);
   if (v.whist?.halfBy === s) tags.push('<span class="tag">полвиста</span>');
+  if (v.catch?.catcher === s) tags.push('<span class="tag gold">ловит</span>');
+  else if (v.catch?.declined.includes(s) && v.phase === 'misereCatch') tags.push('<span class="tag">не ловит</span>');
   if (v.play) tags.push(`<span class="tag">взяток: ${v.play.tricks[s]}</span>`);
   return tags.join('');
 }
@@ -250,7 +267,7 @@ function centerHtml() {
   const v = S.view;
   let info = '';
   if (v.play?.kind === 'raspas') info = 'Распасы — берите поменьше';
-  else if (v.contract === 'MIS') info = `${esc(v.players[v.declarer].name)} играет мизер`;
+  else if (v.contract === 'MIS') info = `${esc(v.players[v.declarer].name)} играет мизер${v.catch?.catcher != null ? ` · ловит ${esc(v.players[v.catch.catcher].name)}` : ''}`;
   else if (v.contract && v.play) {
     const ws = v.whist.whisters.map((s) => esc(v.players[s].name)).join(' и ');
     info = `${esc(v.players[v.declarer].name)}: ${bidHtml(v.contract)} · вист: ${ws}${v.whist.whisters.length === 1 ? (v.whist.open ? ' (в открытую)' : ' (в закрытую)') : ''}${v.config.stalingrad && v.contract === '6S' ? ' · Сталинград' : ''}`;
@@ -259,7 +276,7 @@ function centerHtml() {
   let inner = '';
   if (v.phase === 'bidding') {
     inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div></div></div>`;
-  } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || (v.phase === 'dealEnd' && !v.play)) {
+  } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || v.phase === 'misereCatch' || (v.phase === 'dealEnd' && !v.play)) {
     inner = v.talon ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
   } else if (v.play) {
     const show = S.lastTrickShow && S.lastTrickShow.until > Date.now() ? S.lastTrickShow.trick : null;
@@ -302,6 +319,15 @@ function actionsHtml() {
       return `<div class="msg">${name(v.declarer)} играет <b>${bidHtml(v.contract)}</b>${v.whist.halfBy != null ? ` · ${name(v.whist.halfBy)} сказал полвиста` : ''}</div>
         <div class="row">${l.whist.map((c) => `<button class="btn ${c === 'PASS' ? 'ghost' : ''}" data-act="whist" data-c="${c}">${c === 'HALF' ? 'Уйти за полвиста' : WHIST_LABEL[c]}</button>`).join('')}</div>
         ${l.whist.includes('HALF') ? '<div class="hint">Полвиста: без розыгрыша, вам — висты за половину обязательства. Первый вистующий ещё может передумать и вистовать.</div>' : ''}`;
+    case 'misereCatch': {
+      const [a, b] = v.catch.order;
+      if (!l.catchChoice) return wait(`<b>${name(t)}</b> решает, кто ловит мизер`);
+      const other = v.seat === a ? b : a;
+      const second = v.seat === b;
+      return `<div class="msg">${name(v.declarer)} играет <b>мизер</b>. Кто ловит?${second ? `<br>${name(a)} отказался` : ''}</div>
+        <div class="row"><button class="btn" data-act="catch" data-take="1">🎯 Ловлю сам</button><button class="btn ghost" data-act="catch" data-take="0">Пусть ловит ${name(other)}</button></div>
+        <div class="hint">Ловящий ходит за обе руки и сразу видит карты напарника.${second ? ` Если откажетесь, ловит ${name(a)}.` : ''}</div>`;
+    }
     case 'whistMode':
       if (!l.whistMode) return wait(`<b>${name(t)}</b> выбирает, как вистовать`);
       return `<div class="msg">Вистуете один. Как играем?</div>
@@ -315,7 +341,10 @@ function actionsHtml() {
         return head + '<div class="msg hint">Ждём остальных…</div>';
       }
       if (S.proposeSel != null) return proposeHtml();
-      const turn = l.playSeat == null ? `Ходит <b>${name(v.play.turn)}</b>` : l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`;
+      const ctl = v.play.controller?.[v.play.turn] ?? v.play.turn;
+      const turn = l.playSeat == null
+        ? (v.play.turn === v.seat && ctl !== v.seat ? `За вас ходит <b>${name(ctl)}</b>` : `Ходит <b>${name(v.play.turn)}</b>${ctl !== v.play.turn ? ` (за него — ${name(ctl)})` : ''}`)
+        : l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`;
       return `<div class="row" style="align-items:center"><div class="msg">${turn}</div>${l.propose ? '<button class="btn small ghost" data-act="propose">🤝 Предложить</button>' : ''}</div>`;
     }
     case 'dealEnd': {
@@ -614,6 +643,7 @@ document.addEventListener('click', (e) => {
     case 'whist': send({ t: 'act', action: { type: 'whist', choice: d.c } }); break;
     case 'wmode': send({ t: 'act', action: { type: 'whistMode', open: d.open === '1' } }); break;
     case 'next': send({ t: 'act', action: { type: 'nextDeal' } }); break;
+    case 'catch': send({ t: 'act', action: { type: 'catch', take: d.take === '1' } }); break;
     case 'w3':
       if (!S.confirmW3) { S.confirmW3 = true; render(); break; }
       S.confirmW3 = false;

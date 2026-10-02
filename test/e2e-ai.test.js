@@ -54,6 +54,7 @@ test('игра с ИИ через сервер', { timeout: 180000 }, async () =
       else if (l.contracts.length) send({ t: 'act', action: { type: 'discard', cards: v.hands[me(state)].slice(0, 2), contract: l.contracts[0] } });
       else if (l.whist.length) send({ t: 'act', action: { type: 'whist', choice: 'WHIST' } });
       else if (l.whistMode) send({ t: 'act', action: { type: 'whistMode', open: true } });
+      else if (l.catchChoice) send({ t: 'act', action: { type: 'catch', take: true } });
       else if (l.cards.length) send({ t: 'act', action: { type: 'play', card: l.cards[0] } });
     });
     await until((s) => s.view.phase === 'dealEnd' || s.view.phase === 'gameOver');

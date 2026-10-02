@@ -67,6 +67,7 @@ test('трое играют через сервер', { timeout: 30000 }, async 
         else if (l.contracts.length) x.send({ t: 'act', action: { type: 'discard', cards: v.hands[v.seat].slice(0, 2), contract: l.contracts[0] } });
         else if (l.whist.length) x.send({ t: 'act', action: { type: 'whist', choice: rnd(l.whist) } });
         else if (l.whistMode) x.send({ t: 'act', action: { type: 'whistMode', open: true } });
+        else if (l.catchChoice) x.send({ t: 'act', action: { type: 'catch', take: Math.random() < 0.5 } });
         else if (l.cards.length) x.send({ t: 'act', action: { type: 'play', card: rnd(l.cards) } });
         else if (v.phase === 'dealEnd' && x === a) { deals++; x.send({ t: 'act', action: { type: 'nextDeal' } }); }
       };

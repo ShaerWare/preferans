@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, act, viewFor, legalBids, legalCards, finalBalance, GameError } from '../server/engine.js';
+import { createGame, act, viewFor, legalBids, legalCards, finalBalance, whistShortfall, GameError } from '../server/engine.js';
 
 const players = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
 
@@ -132,6 +132,8 @@ test('случайные партии доигрываются до конца',
         const seat = s.whist.turn;
         const v = viewFor(s, seat);
         act(s, seat, { type: 'whist', choice: pick(v.legal.whist) });
+      } else if (s.phase === 'misereCatch') {
+        act(s, s.catch.turn, { type: 'catch', take: rng() < 0.5 });
       } else if (s.phase === 'whistMode') {
         act(s, s.whist.turn, { type: 'whistMode', open: rng() < 0.5 });
       } else if (s.phase === 'play' && s.play.proposal) {
@@ -242,6 +244,7 @@ test('«предложить»: на распасах нет, на мизере 
   act(m, 2, { type: 'bid', bid: 'PASS' });
   act(m, 0, { type: 'bid', bid: 'PASS' });
   act(m, 1, { type: 'discard', cards: m.hands[1].slice(0, 2), contract: 'MIS' });
+  act(m, 2, { type: 'catch', take: true });
   act(m, 1, { type: 'propose', declTricks: 0 });
   assert.match(viewFor(m, 0).play.proposal.text, /чистый мизер/);
 });
@@ -344,4 +347,63 @@ test('на восьмерной полвиста нет', () => {
   orderGame(s, '8S');
   act(s, 2, { type: 'whist', choice: 'PASS' });
   assert.ok(!viewFor(s, 0).legal.whist.includes('HALF'));
+});
+
+test('недобор виста: вместе взяли обязательное — в гору никому', () => {
+  assert.deepEqual(whistShortfall(4, 1, 2, 3, 1), []); // шестерная: 3+1 = 4
+  assert.deepEqual(whistShortfall(4, 1, 2, 4, 0), []);
+  assert.deepEqual(whistShortfall(2, 1, 2, 2, 0), []); // семерная: 2 на двоих
+  assert.deepEqual(whistShortfall(1, 1, 2, 1, 0), []); // восьмерная: 1 на двоих
+});
+
+test('недобор виста: в гору тот, кто не взял свою долю', () => {
+  assert.deepEqual(whistShortfall(4, 1, 2, 2, 1), [[2, 1]]);
+  assert.deepEqual(whistShortfall(4, 1, 2, 0, 3), [[1, 1]]); // не больше общего недобора
+  assert.deepEqual(whistShortfall(4, 1, 2, 1, 1), [[1, 1], [2, 1]]);
+  assert.deepEqual(whistShortfall(2, 1, 2, 0, 1), [[1, 1]]);
+  assert.deepEqual(whistShortfall(1, 1, 2, 0, 0), [[2, 1]]);
+});
+
+function misereDeal() {
+  const s = game();
+  act(s, 1, { type: 'bid', bid: 'MIS' });
+  act(s, 2, { type: 'bid', bid: 'PASS' });
+  act(s, 0, { type: 'bid', bid: 'PASS' });
+  act(s, 1, { type: 'discard', cards: s.hands[1].slice(0, 2), contract: 'MIS' });
+  return s;
+}
+
+test('мизер: ловящие по очереди решают, кто ловит', () => {
+  const s = misereDeal();
+  assert.equal(s.phase, 'misereCatch');
+  assert.equal(viewFor(s, 2).legal.catchChoice, true); // первый — слева от играющего
+  assert.equal(viewFor(s, 0).legal.catchChoice, false);
+  assert.throws(() => act(s, 0, { type: 'catch', take: true }), GameError);
+  act(s, 2, { type: 'catch', take: false });
+  assert.equal(viewFor(s, 0).legal.catchChoice, true);
+  act(s, 0, { type: 'catch', take: true });
+  assert.equal(s.phase, 'play');
+  assert.equal(s.catch.catcher, 0);
+  assert.deepEqual(s.play.controller, [0, 1, 0]); // ловящий ходит и за напарника
+  // ловящий видит руку напарника сразу, играющий — только после первой взятки
+  assert.ok(viewFor(s, 0).hands[2]);
+  assert.equal(viewFor(s, 1).hands[2], null);
+  assert.equal(viewFor(s, 2).hands[0], null); // напарник руку ловящего не видит
+});
+
+test('мизер: отказались оба — ловит первый', () => {
+  const s = misereDeal();
+  act(s, 2, { type: 'catch', take: false });
+  act(s, 0, { type: 'catch', take: false });
+  assert.equal(s.catch.catcher, 2);
+  assert.deepEqual(s.play.controller, [2, 1, 2]);
+});
+
+test('мизер: первый ловит сам — второй не спрашивается', () => {
+  const s = misereDeal();
+  act(s, 2, { type: 'catch', take: true });
+  assert.equal(s.phase, 'play');
+  assert.deepEqual(s.play.controller, [2, 1, 2]);
+  assert.deepEqual(viewFor(s, 2).legal.controls, [0, 2]);
+  assert.deepEqual(viewFor(s, 0).legal.controls, []); // напарник сам не ходит
 });

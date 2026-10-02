@@ -428,7 +428,8 @@ function knownVoids(state) {
 // Случайный расклад скрытых карт, не противоречащий тому, что видит actor
 function sampleHands(state, actor, rng) {
   const p = state.play;
-  const visible = new Set([actor, ...p.open, ...(p.proposal ? [p.proposal.by] : [])]);
+  const controlled = [0, 1, 2].filter((s) => p.controller[s] === actor);
+  const visible = new Set([actor, ...controlled, ...p.open, ...(p.proposal ? [p.proposal.by] : [])]);
   const played = new Set();
   for (const t of p.history) for (const x of t.cards) played.add(x.card);
   for (const x of p.trick) played.add(x.card);
@@ -504,6 +505,15 @@ function decidePlay(state, actor, lvl, rng) {
   return best.card;
 }
 
+// Кто ловит мизер: бот берётся ловить, если у него много мелочи (ею удобно «подлезать» под играющего).
+// Второй, если первый отказался, ловит всегда (иначе ловить всё равно первому).
+function decideCatch(state, seat, lvl, rng) {
+  if (state.catch.order[1] === seat) return true;
+  if (lvl.randomPlay && rng() < lvl.randomPlay) return rng() < 0.5;
+  const low = state.hands[seat].filter((c) => rankOf(c) <= 2).length; // 7, 8, 9
+  return low >= 4;
+}
+
 // ---------- Точка входа ----------
 
 // Ответ на «Предложить»: доигрываем возможные расклады и сравниваем с предложенным итогом
@@ -527,6 +537,7 @@ export function decide(state, seat, levelKey, rng = Math.random) {
     case 'talon': return decideDiscard(state, seat, lvl, rng);
     case 'whisting': return { type: 'whist', choice: decideWhist(state, seat, lvl, rng) };
     case 'whistMode': return { type: 'whistMode', open: levelKey === 'novice' ? rng() < 0.5 : true };
+    case 'misereCatch': return { type: 'catch', take: decideCatch(state, seat, lvl, rng) };
     case 'play': return { type: 'play', card: decidePlay(state, seat, lvl, rng) };
     default: return null;
   }
@@ -547,6 +558,7 @@ export function actorSeat(state) {
     case 'talon': return state.declarer;
     case 'whisting':
     case 'whistMode': return state.whist.turn;
+    case 'misereCatch': return state.catch.turn;
     case 'play': return state.play.controller[state.play.turn];
     default: return null;
   }
