@@ -75,6 +75,8 @@ function onState(m) {
   if (!v?.legal?.propose) S.proposeSel = null;
   else if (S.proposeSel != null && !v.legal.proposeOptions.includes(S.proposeSel)) S.proposeSel = defaultProposal(v);
   // показать закрытую взятку ещё немного
+  // сыграна новая взятка (или новая раздача) — «последнюю взятку» прячем
+  if (!v?.play || (prev?.play && v.play.trickNo !== prev.play.trickNo)) S.peekLast = false;
   if (v?.play && prev?.play && v.play.trickNo > prev.play.trickNo && v.play.lastTrick) {
     S.lastTrickShow = { trick: v.play.lastTrick, until: Date.now() + 1400 };
     setTimeout(render, 1450);
@@ -289,6 +291,14 @@ function centerHtml() {
     inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div></div></div>`;
   } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || v.phase === 'misereCatch' || (v.phase === 'dealEnd' && !v.play)) {
     inner = v.talon ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
+  } else if (v.play && S.peekLast && v.play.lastTrick) {
+    // «Последняя взятка»: кто чем сходил и кто взял
+    const lt = v.play.lastTrick;
+    inner = `<div class="trick peek">
+      ${lt.talonCard ? cardHtml(lt.talonCard, { cls: 'pos-top' }) : ''}
+      ${lt.cards.map((t, i) => `<div class="peek-card pos-${rel(t.seat)}">${cardHtml(t.card, { cls: lt.winner === t.seat ? 'winner' : '' })}<span class="who">${i + 1}. ${esc(v.players[t.seat].name)}</span></div>`).join('')}
+    </div>
+    <div class="peek-cap">Взятка №${v.play.trickNo}: ${lt.winner == null ? 'никто не взял' : `взял <b>${esc(v.players[lt.winner].name)}</b>`}</div>`;
   } else if (v.play) {
     const show = S.lastTrickShow && S.lastTrickShow.until > Date.now() ? S.lastTrickShow.trick : null;
     const trick = show ? show.cards : v.play.trick.length ? v.play.trick : (v.phase !== 'play' && v.play.lastTrick ? v.play.lastTrick.cards : []);
@@ -299,7 +309,10 @@ function centerHtml() {
       ${trick.map((t) => cardHtml(t.card, { cls: `pos-${rel(t.seat)} ${winner === t.seat ? 'winner' : ''}` })).join('')}
     </div>`;
   }
-  return `<div class="center"><div class="contract-info">${info}</div>${inner}</div>`;
+  const peekBtn = v.phase === 'play' && v.play?.lastTrick
+    ? `<button class="peek-btn ${S.peekLast ? 'on' : ''}" data-act="peek">${S.peekLast ? '✕ Вернуться к столу' : '👁 Последняя взятка'}</button>`
+    : '';
+  return `<div class="center"><div class="contract-info">${info}</div>${inner}${peekBtn}</div>`;
 }
 
 function actionsHtml() {
@@ -691,6 +704,7 @@ document.addEventListener('click', (e) => {
       S.confirmRest = false;
       send({ t: 'act', action: { type: 'takeRest' } });
       break;
+    case 'peek': S.peekLast = !S.peekLast; render(); break;
     case 'catch': send({ t: 'act', action: { type: 'catch', take: d.take === '1' } }); break;
     case 'w3':
       if (!S.confirmW3) { S.confirmW3 = true; render(); break; }

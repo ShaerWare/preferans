@@ -192,3 +192,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .deal-end .row span { margin: 0 6px; }
 .result-lines { font-size: 12px; color: var(--muted); max-width: 380px; text-align: left; }
 .result-lines summary { cursor: pointer; text-align: center; padding: 4px; }
+
+/* «Последняя взятка» */
+.peek-btn { position: absolute; right: 0; bottom: 4px; border: 0; border-radius: 8px; padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,.35); color: var(--ink); z-index: 2; }
+.peek-btn.on { background: var(--gold); color: #222; }
+.trick.peek .peek-card { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.trick.peek .peek-card .card { position: static; transform: none; }
+.trick.peek .peek-card .who { font-size: 11px; color: var(--ink); white-space: nowrap; background: rgba(0,0,0,.35); padding: 0 5px; border-radius: 6px; }
+.trick.peek .pos-bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
+.trick.peek .pos-left { left: 0; top: 0; }
+.trick.peek .pos-right { right: 0; top: 0; }
+.peek-cap { position: absolute; left: 0; bottom: 6px; font-size: 12px; color: var(--muted); }
+.trick.peek .pos-left, .trick.peek .pos-right { transform: none; }
