@@ -476,6 +476,48 @@ test('распасы: после сыгранной игры цена снова
   assert.equal(viewFor(s, 0).raspasPrice, 1);
 });
 
+// Сыграть распасы до раздачи, где кто-то остался без взяток; вернуть прибавку к пуле
+function zeroRaspas(cfg, streak) {
+  for (let seed = 1; seed < 2000; seed++) {
+    const g = createGame({ players, config: cfg, dealer: 0, rng: seeded(seed) });
+    g.raspasStreak = streak;
+    for (let k = 0; k < 3; k++) act(g, g.bidding.turn, { type: 'bid', bid: 'PASS' });
+    while (g.phase === 'play') act(g, g.play.turn, { type: 'play', card: legalCards(g, g.play.turn)[0] });
+    const i = g.lastResult.tricks.indexOf(0);
+    if (i >= 0) return g.score.pool[i];
+  }
+  assert.fail('не нашли распасы без взяток');
+}
+
+test('одинарные распасы: за 0 взяток в пулю по выходу — с 6 → 1, с 7 → 2, с 8 → 4', () => {
+  assert.equal(zeroRaspas({ raspasExit: '6' }, 3), 1);
+  assert.equal(zeroRaspas({ raspasExit: '7' }, 0), 1); // первые распасы — ещё с 6
+  assert.equal(zeroRaspas({ raspasExit: '7' }, 1), 2);
+  assert.equal(zeroRaspas({ raspasExit: 'prog9' }, 1), 2);
+  assert.equal(zeroRaspas({ raspasExit: 'prog9' }, 2), 4);
+  assert.equal(zeroRaspas({ raspasExit: 'prog9' }, 3), 4); // с 9 — тоже 4
+  assert.equal(zeroRaspas({ raspasExit: 'prog9', raspasPrices: '124' }, 2), 1); // не одинарные — 1
+});
+
+test('несыгранная игра не прерывает распасы: выход и цена остаются', () => {
+  const s = game({ raspasExit: 'prog9', raspasPrices: '124' });
+  raspasDeal(s);
+  assert.equal(minBid(s), '7S');
+  // играющий заказывает 10♠ и, сбросив что попало, почти наверняка без взяток не обойдётся
+  act(s, s.bidding.turn, { type: 'bid', bid: '7S' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  const d = s.declarer;
+  act(s, d, { type: 'discard', cards: s.hands[d].slice(0, 2), contract: '10S' });
+  while (s.phase === 'whisting') act(s, s.whist.turn, { type: 'whist', choice: 'WHIST' });
+  while (s.phase === 'play') act(s, s.play.turn, { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  assert.ok(s.score.mountain[d] > 0, `десятерная сыгралась — подберите другой сид: ${s.lastResult.title}`);
+  act(s, 0, { type: 'nextDeal' });
+  assert.equal(s.raspasStreak, 1);
+  assert.equal(minBid(s), '7S');
+  assert.equal(viewFor(s, 0).raspasPrice, 2);
+});
+
 test('распасы: «остальные мои» — все оставшиеся нажавшему', () => {
   const s = game();
   for (let k = 0; k < 3; k++) act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });

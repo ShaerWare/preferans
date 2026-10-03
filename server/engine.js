@@ -2,7 +2,7 @@
 // createGame → act(state, seat, action) → viewFor(state, seat).
 import {
   SUITS, RANKS, BIDS, SUIT_SYMBOL, DEFAULT_CONFIG,
-  bidIndex, bidLevel, bidTrump, bidLabel, minBidLevel, raspasPriceFor,
+  bidIndex, bidLevel, bidTrump, bidLabel, minBidLevel, raspasPriceFor, raspasZeroBonusFor,
 } from './rules.js';
 
 export class GameError extends Error {}
@@ -519,12 +519,14 @@ function settle(state, { kind }) {
   const lines = [];
   const tricks = state.play ? [...state.play.tricks] : null;
   const d = state.declarer;
+  let unplayed = false; // игра не сыграна (без N, пойманный мизер, без трёх) — распасы не прерываются
 
   if (kind === 'raspas') {
     // Взятки, которые взяли все трое, в гору не пишем: одинаковая гора у всех на расчёт не влияет.
     // Например 3, 3 и 4 — в гору только 1 тому, у кого 4.
     const common = Math.min(...tricks);
     const price = raspasPriceFor(cfg, state.raspasStreak || 0); // круг распасов подряд
+    const zero = raspasZeroBonusFor(cfg, state.raspasStreak || 0);
     if (price > 1) lines.push(`Распасы подряд: ${(state.raspasStreak || 0) + 1}-й круг, взятка по ${price}`);
     if (common > 0) lines.push(`Все взяли по ${common} — не пишем`);
     for (const s of [0, 1, 2]) {
@@ -534,19 +536,20 @@ function settle(state, { kind }) {
         sc.mountain[s] += m;
         lines.push(`${name(s)}: ${t} взят. → ${m ? `гора +${m}` : 'в гору ничего'}`);
       } else {
-        if (cfg.raspasZeroBonus) addPool(state, s, cfg.raspasZeroBonus);
-        lines.push(`${name(s)}: без взяток${cfg.raspasZeroBonus ? ` → пуля +${cfg.raspasZeroBonus}` : ''}`);
+        if (zero) addPool(state, s, zero);
+        lines.push(`${name(s)}: без взяток${zero ? ` → пуля +${zero}` : ''}`);
       }
     }
   } else if (kind === 'misere') {
     const v = cfg.gameValue.MIS;
     const t = tricks[d];
     if (t === 0) { addPool(state, d, v); lines.push(`${name(d)} сыграл мизер → пуля +${v}`); }
-    else { sc.mountain[d] += v * t; lines.push(`${name(d)} поймали на мизере (${t}) → гора +${v * t}`); }
+    else { unplayed = true; sc.mountain[d] += v * t; lines.push(`${name(d)} поймали на мизере (${t}) → гора +${v * t}`); }
   } else if (kind === 'w3') {
     const level = bidLevel(state.contract);
     const v = cfg.gameValue[level];
     const each = (10 - (level - 3)) / 2; // защита как будто взяла остальное поровну
+    unplayed = true;
     sc.mountain[d] += 3 * v;
     lines.push(`${name(d)}: без трёх → гора +${3 * v}`);
     for (const s of [next(d), next(next(d))]) {
@@ -576,6 +579,7 @@ function settle(state, { kind }) {
         lines.push(`${name(d)}: ${got} из ${need} — сыграл → пуля +${v}`);
       } else {
         const under = need - got;
+        unplayed = true;
         sc.mountain[d] += v * under;
         for (const s of [a, b]) sc.whists[s][d] += v * under;
         lines.push(`${name(d)}: без ${under} → гора +${v * under}, каждому по ${v * under} вистов`);
@@ -616,7 +620,10 @@ function settle(state, { kind }) {
   state.history.push({ dealNo: state.dealNo, title, lines });
   say(state, `${title}. ${lines.join('; ')}`);
 
-  state.raspasStreak = kind === 'raspas' ? (state.raspasStreak || 0) + 1 : 0;
+  // Счётчик распасов подряд (выход и цена): распасы +1, несыгранная игра его не трогает,
+  // сыгранная — сбрасывает
+  if (kind === 'raspas') state.raspasStreak = (state.raspasStreak || 0) + 1;
+  else if (!unplayed) state.raspasStreak = 0;
 
   if (sc.pool.every((p) => p >= cfg.poolTarget)) {
     state.phase = 'gameOver';

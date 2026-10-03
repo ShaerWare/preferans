@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG = {
   responsibleWhist: true, // Сочи: недобор виста — половина стоимости в гору за взятку
   // Цена взятки на распасах по кругам (распасы подряд): '1' — 1,1,1…; '12' — 1,2,2…; '124' — 1,2,4…
   raspasPrices: '1',
-  raspasZeroBonus: 1, // в пулю за «чистый» распас (ноль взяток)
+  raspasZeroBonus: 1, // в пулю за «чистый» распас (ноль взяток); на одинарных распасах — по выходу, см. raspasZeroBonusFor
   raspasTalonLeads: true, // первые две взятки на распасах — в масть карт прикупа
   // «Без трёх»: играющий, увидев прикуп, сдаётся. Ему — гора 3×стоимость, каждому противнику —
   // висты за «без трёх» (3×стоимость) и за свою половину взяток защиты (10 − (заказ − 3)) / 2.
@@ -58,6 +58,15 @@ export const RASPAS_PRICE = {
 export function raspasPriceFor(cfg, streak) {
   const steps = RASPAS_PRICE[cfg.raspasPrices]?.steps || [cfg.raspasPrice || 1]; // старые пули: raspasPrice
   return steps[Math.min(streak, steps.length - 1)];
+}
+
+// В пулю за распас без взяток. На одинарных распасах (1, 1, 1…) — по текущему выходу:
+// с 6 → 1, с 7 → 2, с 8 и выше → 4. При растущей цене взятки — всегда raspasZeroBonus.
+const ZERO_BONUS_BY_EXIT = { 6: 1, 7: 2, 8: 4 };
+export function raspasZeroBonusFor(cfg, streak) {
+  if (!cfg.raspasZeroBonus) return 0;
+  if ((cfg.raspasPrices || '1') !== '1') return cfg.raspasZeroBonus;
+  return ZERO_BONUS_BY_EXIT[Math.min(minBidLevel(cfg.raspasExit, streak), 8)];
 }
 
 export function minBidLevel(exit, streak) {
