@@ -478,10 +478,14 @@ function recordTrail(state, before) {
   const t = state.scoreTrail ||= {
     pool: [[], [], []], mountain: [[], [], []], whists: [0, 1, 2].map(() => [[], [], []]),
   };
+  // last — какие записи появились в последней раздаче (их выделяем цветом)
+  t.last = { pool: [], mountain: [], whists: [] };
   for (const i of [0, 1, 2]) {
-    if (sc.pool[i] !== pool0[i]) t.pool[i].push(sc.pool[i]);
-    if (sc.mountain[i] !== mountain0[i]) t.mountain[i].push(sc.mountain[i]);
-    for (const j of [0, 1, 2]) if (sc.whists[i][j] !== whists0[i][j]) t.whists[i][j].push(sc.whists[i][j]);
+    if (sc.pool[i] !== pool0[i]) { t.pool[i].push(sc.pool[i]); t.last.pool.push(i); }
+    if (sc.mountain[i] !== mountain0[i]) { t.mountain[i].push(sc.mountain[i]); t.last.mountain.push(i); }
+    for (const j of [0, 1, 2]) {
+      if (sc.whists[i][j] !== whists0[i][j]) { t.whists[i][j].push(sc.whists[i][j]); t.last.whists.push(`${i}-${j}`); }
+    }
   }
 }
 

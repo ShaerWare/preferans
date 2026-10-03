@@ -181,3 +181,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .prop-opt small { font-size: 11px; color: #555; }
 .prop-opt.on { outline: 3px solid var(--gold); }
 .btn.danger { background: var(--red); color: #fff; }
+
+/* свежие записи последней раздачи — красными чернилами; гора — как пуля и висты */
+.pulka .fresh { fill: #b3262c; }
+/* экран после раздачи: лист пульки на всю доступную высоту */
+.deal-end { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-block: 8px; text-align: center; }
+.deal-end .result-title { font-weight: 700; font-size: 16px; }
+.deal-end .sheet-fit { flex: 1 1 auto; min-height: 240px; width: 100%; display: flex; justify-content: center; }
+.deal-end .sheet-fit .pulka { width: auto; height: 100%; max-width: 100%; max-height: 62vh; margin: 0; }
+.deal-end .row span { margin: 0 6px; }
+.result-lines { font-size: 12px; color: var(--muted); max-width: 380px; text-align: left; }
+.result-lines summary { cursor: pointer; text-align: center; padding: 4px; }

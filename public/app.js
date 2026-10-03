@@ -410,8 +410,29 @@ function bidGrid(legal, kind, selected) {
   return `<div class="bid-grid">${html}</div>`;
 }
 
+// После раздачи и в конце пули — весь лист пульки, свежие записи выделены
+function resultHtml() {
+  const v = S.view;
+  const r = v.lastResult;
+  const over = v.phase === 'gameOver';
+  const finals = over ? `<div class="row">${v.players.map((p, s) => `<span>${esc(p.name)}: <b class="${v.final[s] >= 0 ? 'pos' : 'neg'}">${v.final[s] > 0 ? '+' : ''}${v.final[s]}</b></span>`).join('')}</div>` : '';
+  const details = r ? `<details class="result-lines"><summary>Подробнее о раздаче</summary>${r.lines.map((x) => `<div>${esc(x)}</div>`).join('')}</details>` : '';
+  const btn = v.seat == null ? ''
+    : over ? `${settingsHtml()}<button class="btn" data-act="start">Новая пуля</button>`
+    : '<button class="btn" data-act="next">Следующая раздача</button>';
+  return `<div class="deal-end">
+    <div class="result-title">${over ? '🏁 Пуля закрыта' : `№${v.dealNo} · ${esc(r?.title || '')}`}</div>
+    ${finals}
+    <div class="sheet-fit">${sheetSvg(v)}</div>
+    <div class="hint">Красным — записи последней раздачи.</div>
+    ${btn}
+    ${details}
+  </div>`;
+}
+
 function tableHtml() {
   const v = S.view;
+  if (v.phase === 'dealEnd' || v.phase === 'gameOver') return resultHtml();
   const me = v.seat ?? 0;
   const autoPilot = v.seat != null && !!S.table.seats[v.seat]?.ai && !['dealEnd', 'gameOver'].includes(v.phase);
   const left = (me + 1) % 3;
@@ -481,15 +502,16 @@ function tableMenuHtml() {
 // Лист пульки как на бумаге: кружок с размером пули в центре, сектор каждого игрока
 // у его края (я — снизу, партнёры — слева и справа). Снаружи висты, дальше пуля, у центра гора.
 const fmtNum = (x) => String(Math.round(x * 100) / 100);
-// Запись через точку «2.4.6.10»; если не влезает — оставляем хвост с «…», последнее число жирным
-function seqSvg(vals, maxPx, fs) {
+// Запись через точку «2.4.6.10»; если не влезает — оставляем хвост с «…», последнее число жирным.
+// fresh — последнее число записано в последней раздаче: выделяем красным.
+function seqSvg(vals, maxPx, fs, fresh = false) {
   if (!vals.length) return '';
   const parts = vals.map(fmtNum);
   const fits = (k) => (parts.slice(k).join('.').length + (k ? 1 : 0)) * fs * 0.56 <= maxPx;
   let k = 0;
   while (k < parts.length - 1 && !fits(k)) k++;
   const head = parts.slice(k, -1).join('.');
-  return `${k ? '…' : ''}${head}${head ? '.' : ''}<tspan font-weight="700">${parts.at(-1)}</tspan>`;
+  return `${k ? '…' : ''}${head}${head ? '.' : ''}<tspan font-weight="700"${fresh ? ' class="fresh"' : ''}>${parts.at(-1)}</tspan>`;
 }
 
 function sheetSvg(v) {
@@ -503,6 +525,8 @@ function sheetSvg(v) {
     const cur = j == null ? sc[kind][i] : sc[kind][i][j];
     return cur ? [cur] : [];
   };
+  const last = tr?.last;
+  const fresh = (kind, i, j) => !!last && (j == null ? last[kind]?.includes(i) : last[kind]?.includes(`${i}-${j}`));
   const bal = v.final || v.balance;
   const name = (s) => `${esc(v.players[s].name)} <tspan class="${bal[s] >= 0 ? 'pos' : 'neg'}">${bal[s] > 0 ? '+' : ''}${fmtNum(bal[s])}</tspan>`;
   const txt = (x, y, rot, body, cls = 'ink', fs = 13) =>
@@ -511,18 +535,18 @@ function sheetSvg(v) {
   const span = (y) => 2 * ((cx * (y - cy)) / (H - cy));
   const out = [];
   // нижний — я
-  out.push(txt(cx / 2 + 6, H - B1 / 2, 0, seqSvg(seq('whists', me, L), cx - 24, 13)));
-  out.push(txt(cx + cx / 2 - 6, H - B1 / 2, 0, seqSvg(seq('whists', me, R), cx - 24, 13)));
-  out.push(txt(cx, H - (B1 + B2) / 2, 0, seqSvg(seq('pool', me), span(H - B2) - 16, 14)));
-  out.push(txt(cx, H - B2 - 16, 0, seqSvg(seq('mountain', me), span(H - B2 - 30) - 16, 14), 'ink red'));
+  out.push(txt(cx / 2 + 6, H - B1 / 2, 0, seqSvg(seq('whists', me, L), cx - 24, 13, fresh('whists', me, L))));
+  out.push(txt(cx + cx / 2 - 6, H - B1 / 2, 0, seqSvg(seq('whists', me, R), cx - 24, 13, fresh('whists', me, R))));
+  out.push(txt(cx, H - (B1 + B2) / 2, 0, seqSvg(seq('pool', me), span(H - B2) - 16, 14, fresh('pool', me))));
+  out.push(txt(cx, H - B2 - 16, 0, seqSvg(seq('mountain', me), span(H - B2 - 30) - 16, 14, fresh('mountain', me))));
   // боковые: текст повёрнут к игроку (левый читает сверху вниз, правый — снизу вверх)
   for (const [s, other, side] of [[L, R, -1], [R, L, 1]]) {
     const X = (x) => (side < 0 ? x : W - x), rot = side < 0 ? 90 : -90;
     const len = (x) => cy + (cx - x) * ((H - cy) / cx) - B1; // вертикальная длина полосы до диагонали
-    out.push(txt(X(B1 / 2), (B1 + cy + (cx - B1 / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('whists', s, me), len(B1 / 2) - 16, 13)));
-    out.push(txt(side < 0 ? (B1 + cx) / 2 : W - (B1 + cx) / 2, B1 / 2, 0, seqSvg(seq('whists', s, other), cx - B1 - 12, 12)));
-    out.push(txt(X((B1 + B2) / 2), (B1 + cy + (cx - (B1 + B2) / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('pool', s), len((B1 + B2) / 2) - 30, 14)));
-    out.push(txt(X(B2 + 16), (B2 + cy + (cx - B2 - 16) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('mountain', s), len(B2 + 16) - 60, 14), 'ink red'));
+    out.push(txt(X(B1 / 2), (B1 + cy + (cx - B1 / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('whists', s, me), len(B1 / 2) - 16, 13, fresh('whists', s, me))));
+    out.push(txt(side < 0 ? (B1 + cx) / 2 : W - (B1 + cx) / 2, B1 / 2, 0, seqSvg(seq('whists', s, other), cx - B1 - 12, 12, fresh('whists', s, other))));
+    out.push(txt(X((B1 + B2) / 2), (B1 + cy + (cx - (B1 + B2) / 2) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('pool', s), len((B1 + B2) / 2) - 30, 14, fresh('pool', s))));
+    out.push(txt(X(B2 + 16), (B2 + cy + (cx - B2 - 16) * ((H - cy) / cx)) / 2, rot, seqSvg(seq('mountain', s), len(B2 + 16) - 60, 14, fresh('mountain', s))));
   }
   const ln = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
   return `<svg class="pulka" viewBox="${-M} ${-M} ${W + 2 * M} ${H + 2 * M}" role="img" aria-label="Лист пульки">
@@ -548,7 +572,7 @@ function renderScore() {
   const hist = [...v.history].reverse().map((h) => `<div><b>№${h.dealNo} ${esc(h.title)}</b> — ${esc(h.lines.join('; '))}</div>`).join('');
   $('#score-body').innerHTML = `<div class="hint">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'} · цена на распасах: ${RASPAS_PRICE[v.config.raspasPrices] || '1, 1, 1…'}${v.config.stalingrad ? ' · Сталинград' : ''}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}, следующие — по ${v.raspasPrice}` : ''}</div>
     ${sheetSvg(v)}
-    <div class="hint">Снаружи — висты (каждая половина — на соседа с той стороны), дальше пуля, у кружка — гора.
+    <div class="hint">Снаружи — висты (каждая половина — на соседа с той стороны), дальше пуля, у кружка — гора. Красным — записи последней раздачи.
       Число у имени — ${v.final ? 'итог в вистах' : 'сколько выиграл бы, если расписать сейчас'}.</div>
     <div class="history">${hist}</div>
     <div class="row" style="margin-top:12px">${tableMenuHtml()}</div>`;
