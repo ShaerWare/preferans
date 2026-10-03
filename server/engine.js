@@ -2,7 +2,7 @@
 // createGame → act(state, seat, action) → viewFor(state, seat).
 import {
   SUITS, RANKS, BIDS, SUIT_SYMBOL, DEFAULT_CONFIG,
-  bidIndex, bidLevel, bidTrump, bidLabel, minBidLevel,
+  bidIndex, bidLevel, bidTrump, bidLabel, minBidLevel, raspasPriceFor,
 } from './rules.js';
 
 export class GameError extends Error {}
@@ -508,10 +508,12 @@ function settle(state, { kind }) {
     // Взятки, которые взяли все трое, в гору не пишем: одинаковая гора у всех на расчёт не влияет.
     // Например 3, 3 и 4 — в гору только 1 тому, у кого 4.
     const common = Math.min(...tricks);
+    const price = raspasPriceFor(cfg, state.raspasStreak || 0); // круг распасов подряд
+    if (price > 1) lines.push(`Распасы подряд: ${(state.raspasStreak || 0) + 1}-й круг, взятка по ${price}`);
     if (common > 0) lines.push(`Все взяли по ${common} — не пишем`);
     for (const s of [0, 1, 2]) {
       const t = tricks[s];
-      const m = (t - common) * cfg.raspasPrice;
+      const m = (t - common) * price;
       if (t > 0) {
         sc.mountain[s] += m;
         lines.push(`${name(s)}: ${t} взят. → ${m ? `гора +${m}` : 'в гору ничего'}`);
@@ -676,7 +678,8 @@ export function viewFor(state, seat) {
     dealNo: state.dealNo,
     dealer: state.dealer,
     players: state.players,
-    config: { poolTarget: state.config.poolTarget, raspasExit: state.config.raspasExit || '6', stalingrad: !!state.config.stalingrad },
+    config: { poolTarget: state.config.poolTarget, raspasExit: state.config.raspasExit || '6', stalingrad: !!state.config.stalingrad, raspasPrices: state.config.raspasPrices || '1' },
+    raspasPrice: raspasPriceFor(state.config, state.raspasStreak || 0), // цена взятки, если сейчас будут распасы
     minLevel: minLevel(state),
     raspasStreak: state.raspasStreak || 0,
     score: state.score,

@@ -437,3 +437,41 @@ test('распасы: если кто-то без взяток — пишем в
   assert.deepEqual(s.score.mountain, t);
   t.forEach((x, i) => assert.equal(s.score.pool[i], x === 0 ? 1 : 0));
 });
+
+// Сыграть распасы и вернуть, сколько каждому записали в гору за эту раздачу
+function raspasMountain(s) {
+  const before = [...s.score.mountain];
+  for (let k = 0; k < 3; k++) act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  while (s.phase === 'play') act(s, s.play.turn, { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  const t = s.lastResult.tricks;
+  const min = Math.min(...t);
+  const delta = s.score.mountain.map((m, i) => m - before[i]);
+  act(s, 0, { type: 'nextDeal' });
+  return { delta, base: t.map((x) => x - min) };
+}
+
+for (const [key, prices] of [['1', [1, 1, 1, 1]], ['12', [1, 2, 2, 2]], ['124', [1, 2, 4, 4]]]) {
+  test(`распасы: цена взятки по кругам ${prices.join(', ')}…`, () => {
+    const s = game({ raspasPrices: key });
+    for (const price of prices) {
+      const { delta, base } = raspasMountain(s);
+      assert.deepEqual(delta, base.map((x) => x * price));
+    }
+  });
+}
+
+test('распасы: после сыгранной игры цена снова 1 (сброс)', () => {
+  const s = game({ raspasPrices: '124' });
+  raspasMountain(s);
+  raspasMountain(s);
+  assert.equal(viewFor(s, 0).raspasPrice, 4);
+  // кто-то заказывает 6♠, оба пасуют — игра сыграна
+  act(s, s.bidding.turn, { type: 'bid', bid: '6S' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  act(s, s.declarer, { type: 'discard', cards: s.hands[s.declarer].slice(0, 2), contract: '6S' });
+  act(s, s.whist.turn, { type: 'whist', choice: 'PASS' });
+  act(s, s.whist.turn, { type: 'whist', choice: 'PASS' });
+  act(s, 0, { type: 'nextDeal' });
+  assert.equal(viewFor(s, 0).raspasPrice, 1);
+});

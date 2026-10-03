@@ -19,7 +19,7 @@ const store = {
 const S = {
   ws: null, me: null, tableId: qs.get('table') || tg?.initDataUnsafe?.start_param || null,
   table: null, view: null, link: null, chat: [], unread: 0,
-  discardSel: new Set(), contractSel: null, poolTarget: Number(store.get('poolTarget')) || 20, raspasExit: store.get('raspasExit') || '6', stalingrad: store.get('stalingrad') === '1', aiLevel: store.get('aiLevel') || 'pro',
+  discardSel: new Set(), contractSel: null, poolTarget: Number(store.get('poolTarget')) || 20, raspasExit: store.get('raspasExit') || '6', stalingrad: store.get('stalingrad') === '1', raspasPrices: store.get('raspasPrices') || '1', aiLevel: store.get('aiLevel') || 'pro',
   lastTrickShow: null, prevTrickNo: null, wasMyTurn: false, lastPhase: null,
 };
 
@@ -183,7 +183,15 @@ const RASPAS_EXIT_HINT = {
 };
 
 // Настройки пули: размер и выход с распасов (мизер разрешён всегда)
-const poolConfig = () => ({ poolTarget: S.poolTarget, raspasExit: S.raspasExit, stalingrad: S.stalingrad });
+const poolConfig = () => ({ poolTarget: S.poolTarget, raspasExit: S.raspasExit, stalingrad: S.stalingrad, raspasPrices: S.raspasPrices });
+const RASPAS_PRICE = { 1: '1, 1, 1…', 12: '1, 2, 2…', 124: '1, 2, 4…' };
+const RASPAS_PRICE_HINT = {
+  1: 'Взятка на распасах всегда стоит 1.',
+  12: 'Первые распасы — взятка 1, вторые подряд и дальше — 2.',
+  124: 'Первые распасы — взятка 1, вторые подряд — 2, третьи и дальше — 4.',
+};
+// какую цену подставлять при выборе выхода с распасов (можно поменять вручную)
+const PRICE_FOR_EXIT = { 6: '1', 7: '12', prog9: '124', prog8: '124' };
 
 function settingsHtml() {
   const pool = [10, 20, 30].map((n) => `<button data-act="pool" data-n="${n}" class="${S.poolTarget === n ? 'on' : ''}">${n}</button>`).join('');
@@ -191,6 +199,9 @@ function settingsHtml() {
   return `<div>Пуля до: <span class="seg">${pool}</span></div>
     <div>Выход с распасов:</div><span class="seg">${exit}</span>
     <div class="hint">${RASPAS_EXIT_HINT[S.raspasExit]} Мизер можно всегда.</div>
+    <div>Цена взятки на распасах:</div>
+    <span class="seg">${Object.entries(RASPAS_PRICE).map(([k, l]) => `<button data-act="rprice" data-k="${k}" class="${S.raspasPrices === k ? 'on' : ''}">${l}</button>`).join('')}</span>
+    <div class="hint">${RASPAS_PRICE_HINT[S.raspasPrices]} Круг — распасы подряд; после любой игры снова 1.</div>
     <div>Сталинград (обязон):</div>
     <span class="seg"><button data-act="stal" data-v="0" class="${S.stalingrad ? '' : 'on'}">Нет</button><button data-act="stal" data-v="1" class="${S.stalingrad ? 'on' : ''}">Да</button></span>
     <div class="hint">${S.stalingrad ? 'На 6♠ вистуют оба обязательно, в закрытую; за недовист не отвечают.' : 'На 6♠ вистуют по желанию, как на любой игре.'}</div>`;
@@ -266,12 +277,12 @@ function oppHtml(s) {
 function centerHtml() {
   const v = S.view;
   let info = '';
-  if (v.play?.kind === 'raspas') info = 'Распасы — берите поменьше';
+  if (v.play?.kind === 'raspas') info = `Распасы — берите поменьше${v.raspasPrice > 1 ? ` · взятка по ${v.raspasPrice}` : ''}`;
   else if (v.contract === 'MIS') info = `${esc(v.players[v.declarer].name)} играет мизер${v.catch?.catcher != null ? ` · ловит ${esc(v.players[v.catch.catcher].name)}` : ''}`;
   else if (v.contract && v.play) {
     const ws = v.whist.whisters.map((s) => esc(v.players[s].name)).join(' и ');
     info = `${esc(v.players[v.declarer].name)}: ${bidHtml(v.contract)} · вист: ${ws}${v.whist.whisters.length === 1 ? (v.whist.open ? ' (в открытую)' : ' (в закрытую)') : ''}${v.config.stalingrad && v.contract === '6S' ? ' · Сталинград' : ''}`;
-  } else if (v.phase === 'bidding') info = `Раздача №${v.dealNo} · торговля${v.minLevel > 6 ? ` с ${v.minLevel}♠ (выход с распасов)` : ''}`;
+  } else if (v.phase === 'bidding') info = `Раздача №${v.dealNo} · торговля${v.minLevel > 6 ? ` с ${v.minLevel}♠ (выход с распасов)` : ''}${v.raspasPrice > 1 ? ` · распасы по ${v.raspasPrice}` : ''}`;
 
   let inner = '';
   if (v.phase === 'bidding') {
@@ -535,7 +546,7 @@ function renderScore() {
   const v = S.view;
   if (!v) { $('#score-body').innerHTML = '<div class="hint">Партия ещё не началась</div>'; return; }
   const hist = [...v.history].reverse().map((h) => `<div><b>№${h.dealNo} ${esc(h.title)}</b> — ${esc(h.lines.join('; '))}</div>`).join('');
-  $('#score-body').innerHTML = `<div class="hint">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'}${v.config.stalingrad ? ' · Сталинград' : ''}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}` : ''}</div>
+  $('#score-body').innerHTML = `<div class="hint">Пуля до ${v.config.poolTarget} · выход с распасов: ${RASPAS_EXIT[v.config.raspasExit] || '6'} · цена на распасах: ${RASPAS_PRICE[v.config.raspasPrices] || '1, 1, 1…'}${v.config.stalingrad ? ' · Сталинград' : ''}${v.raspasStreak ? ` · распасов подряд: ${v.raspasStreak}, следующие — по ${v.raspasPrice}` : ''}</div>
     ${sheetSvg(v)}
     <div class="hint">Снаружи — висты (каждая половина — на соседа с той стороны), дальше пуля, у кружка — гора.
       Число у имени — ${v.final ? 'итог в вистах' : 'сколько выиграл бы, если расписать сейчас'}.</div>
@@ -606,7 +617,12 @@ document.addEventListener('click', (e) => {
     case 'stand': send({ t: 'stand' }); break;
     case 'pool': S.poolTarget = Number(d.n); store.set('poolTarget', d.n); render(); break;
     case 'stal': S.stalingrad = d.v === '1'; store.set('stalingrad', d.v); render(); break;
-    case 'rexit': S.raspasExit = d.k; store.set('raspasExit', d.k); render(); break;
+    case 'rexit':
+      S.raspasExit = d.k; store.set('raspasExit', d.k);
+      S.raspasPrices = PRICE_FOR_EXIT[d.k]; store.set('raspasPrices', S.raspasPrices);
+      render();
+      break;
+    case 'rprice': S.raspasPrices = d.k; store.set('raspasPrices', d.k); render(); break;
     case 'start': send({ t: 'start', config: poolConfig() }); break;
     case 'level': S.aiLevel = d.l; store.set('aiLevel', d.l); render(); break;
     case 'solo': S.noResume = false; send({ t: 'create', bots: S.aiLevel, config: poolConfig() }); break;

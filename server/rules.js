@@ -21,7 +21,8 @@ export const DEFAULT_CONFIG = {
   whistObligation: { 6: 4, 7: 2, 8: 1, 9: 1, 10: 0 },
   halfWhistLevels: [6, 7], // «уйти за полвиста» — по своду правил на шестерной и семерной
   responsibleWhist: true, // Сочи: недобор виста — половина стоимости в гору за взятку
-  raspasPrice: 1, // цена взятки на распасах
+  // Цена взятки на распасах по кругам (распасы подряд): '1' — 1,1,1…; '12' — 1,2,2…; '124' — 1,2,4…
+  raspasPrices: '1',
   raspasZeroBonus: 1, // в пулю за «чистый» распас (ноль взяток)
   raspasTalonLeads: true, // первые две взятки на распасах — в масть карт прикупа
   // «Без трёх»: играющий, увидев прикуп, сдаётся. Ему — гора 3×стоимость, каждому противнику —
@@ -47,6 +48,18 @@ export const RASPAS_EXIT = {
 };
 
 // С какого уровня можно торговаться после streak распасов подряд
+export const RASPAS_PRICE = {
+  1: { label: '1, 1, 1…', steps: [1] },
+  12: { label: '1, 2, 2…', steps: [1, 2] },
+  124: { label: '1, 2, 4…', steps: [1, 2, 4] },
+};
+
+// Цена взятки на распасах, если перед ними было streak распасов подряд
+export function raspasPriceFor(cfg, streak) {
+  const steps = RASPAS_PRICE[cfg.raspasPrices]?.steps || [cfg.raspasPrice || 1]; // старые пули: raspasPrice
+  return steps[Math.min(streak, steps.length - 1)];
+}
+
 export function minBidLevel(exit, streak) {
   const steps = (RASPAS_EXIT[exit] || RASPAS_EXIT[6]).steps;
   return steps[Math.min(streak, steps.length - 1)];
