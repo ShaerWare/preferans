@@ -475,3 +475,21 @@ test('распасы: после сыгранной игры цена снова
   act(s, 0, { type: 'nextDeal' });
   assert.equal(viewFor(s, 0).raspasPrice, 1);
 });
+
+test('распасы: «остальные мои» — все оставшиеся нажавшему', () => {
+  const s = game();
+  for (let k = 0; k < 3; k++) act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
+  // сыграем три взятки, потом место 2 забирает остальное
+  while (s.play.trickNo < 3) act(s, s.play.turn, { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  const before = [...s.play.tricks];
+  assert.equal(viewFor(s, 2).legal.takeRest, true);
+  act(s, 2, { type: 'takeRest' });
+  assert.equal(s.phase, 'dealEnd');
+  assert.deepEqual(s.lastResult.tricks, [before[0], before[1], before[2] + 7]);
+});
+
+test('«остальные мои» только на распасах', () => {
+  const s = toPlay();
+  assert.equal(viewFor(s, 0).legal.takeRest, false);
+  assert.throws(() => act(s, 0, { type: 'takeRest' }), GameError);
+});

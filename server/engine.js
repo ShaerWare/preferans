@@ -430,6 +430,18 @@ function doAnswerProposal(state, seat, accept) {
   settle(state, { kind: p.kind });
 }
 
+// Распасы: «Остальные мои» — все оставшиеся взятки сразу нажавшему, раздача считается
+function doTakeRest(state, seat) {
+  const p = state.play;
+  if (state.phase !== 'play' || p.kind !== 'raspas') throw new GameError('«Остальные мои» — только на распасах');
+  const rem = remainingTricks(state);
+  p.tricks[seat] += rem;
+  p.trickNo = 10;
+  p.trick = [];
+  say(state, `${state.players[seat].name}: остальные мои (+${rem})`);
+  settle(state, { kind: 'raspas' });
+}
+
 function doCancelProposal(state, seat) {
   const pr = state.play?.proposal;
   if (!pr || pr.by !== seat) throw new GameError('Нечего отзывать');
@@ -657,6 +669,7 @@ export function act(state, seat, action) {
     case 'propose': doPropose(state, seat, Number(action.declTricks)); break;
     case 'answerProposal': doAnswerProposal(state, seat, !!action.accept); break;
     case 'cancelProposal': doCancelProposal(state, seat); break;
+    case 'takeRest': doTakeRest(state, seat); break;
     case 'nextDeal':
       if (state.phase !== 'dealEnd') throw new GameError('Раздача ещё идёт');
       startDeal(state); break;
@@ -724,6 +737,7 @@ export function viewFor(state, seat) {
       withoutThree: state.phase === 'talon' && seat === state.declarer && state.config.allowWithoutThree !== false
         && state.bidding.highest.bid !== 'MIS',
       propose: seat != null && state.phase === 'play' && !p.proposal && p.kind !== 'raspas',
+      takeRest: seat != null && state.phase === 'play' && p.kind === 'raspas',
       proposeOptions: seat != null && state.phase === 'play' && !p.proposal ? proposeOptions(state) : [],
       answerProposal: seat != null && proposalPending(state).includes(seat),
     },

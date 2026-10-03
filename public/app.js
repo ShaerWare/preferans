@@ -356,7 +356,10 @@ function actionsHtml() {
       const turn = l.playSeat == null
         ? (v.play.turn === v.seat && ctl !== v.seat ? `За вас ходит <b>${name(ctl)}</b>` : `Ходит <b>${name(v.play.turn)}</b>${ctl !== v.play.turn ? ` (за него — ${name(ctl)})` : ''}`)
         : l.playSeat === v.seat ? '<b>Ваш ход</b>' : `<b>Ходите за ${name(l.playSeat)}</b>`;
-      return `<div class="row" style="align-items:center"><div class="msg">${turn}</div>${l.propose ? '<button class="btn small ghost" data-act="propose">🤝 Предложить</button>' : ''}</div>`;
+      const rest = l.takeRest
+        ? `<button class="btn small ${S.confirmRest ? 'danger' : 'ghost'}" data-act="takeRest">${S.confirmRest ? `Точно все ${v.play.remaining} мои?` : '🙋 Остальные мои'}</button>`
+        : '';
+      return `<div class="row" style="align-items:center"><div class="msg">${turn}</div>${l.propose ? '<button class="btn small ghost" data-act="propose">🤝 Предложить</button>' : ''}${rest}</div>`;
     }
     case 'dealEnd': {
       const r = v.lastResult;
@@ -683,6 +686,11 @@ document.addEventListener('click', (e) => {
     case 'whist': send({ t: 'act', action: { type: 'whist', choice: d.c } }); break;
     case 'wmode': send({ t: 'act', action: { type: 'whistMode', open: d.open === '1' } }); break;
     case 'next': send({ t: 'act', action: { type: 'nextDeal' } }); break;
+    case 'takeRest':
+      if (!S.confirmRest) { S.confirmRest = true; render(); setTimeout(() => { S.confirmRest = false; render(); }, 4000); break; }
+      S.confirmRest = false;
+      send({ t: 'act', action: { type: 'takeRest' } });
+      break;
     case 'catch': send({ t: 'act', action: { type: 'catch', take: d.take === '1' } }); break;
     case 'w3':
       if (!S.confirmW3) { S.confirmW3 = true; render(); break; }
