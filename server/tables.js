@@ -5,6 +5,9 @@ import crypto from 'node:crypto';
 import { createGame, act, viewFor, finishEarly } from './engine.js';
 import { decide, actingSeats, AI_LEVELS, AI_NAMES } from './ai.js';
 import { bidLabel, RASPAS_EXIT, RASPAS_PRICE } from './rules.js';
+import { Stats } from './stats.js';
+
+const STALE_MS = 24 * 3600 * 1000; // пуля без ходов дольше суток считается брошенной
 
 const CHAT_LIMIT = 200;
 
@@ -17,6 +20,7 @@ export class Tables {
     this.aiTimers = new Map(); // tableId → таймер хода бота
     this.aiDelay = 1; // множитель пауз ботов (в тестах 0)
     this.presence = { offlineSince: () => null }; // подменяется сервером
+    this.stats = new Stats(file.replace(/.json$/, '') + '-players.json');
     this.load();
   }
 
@@ -190,16 +194,55 @@ export class Tables {
     if (t.seats.some((s, i) => i !== seat && !s.bot)) throw new Error('Досрочно закончить можно только игру против ИИ');
     finishEarly(t.game);
     const g = t.game;
+    this.recordEnd(t, 'early');
     const lines = g.players.map((p, s) => `${p.name}: ${g.final[s] > 0 ? '+' : ''}${g.final[s]}`);
     this.pushChat(t, { system: true, text: `🏁 Пуля закончена досрочно\n${lines.join('\n')}` });
     this.save();
     this.emit(t, { type: 'update' });
   }
 
+  // ---------- статистика ----------
+
+  // Записать итог пули людям за столом.
+  // normal — пуля закрыта: доиграл, если в конце играл сам (не ИИ за него);
+  // early — закончили досрочно; abandoned — пуля брошена (сутки без ходов), висты не пишем.
+  recordEnd(t, mode) {
+    const g = t.game;
+    if (!g || g.statsDone) return;
+    g.statsDone = true;
+    t.seats.forEach((s, i) => {
+      if (!s || s.bot) return;
+      const finished = mode === 'normal' && !s.ai;
+      this.stats.record(s, { finished, whists: mode === 'abandoned' ? null : g.final?.[i] ?? null });
+    });
+  }
+
+  // Пули, где давно никто не ходил, закрываем как брошенные
+  sweepStale(now = Date.now()) {
+    for (const t of this.tables.values()) {
+      const g = t.game;
+      if (!g || g.phase === 'gameOver' || now - (t.updatedAt || t.createdAt) < STALE_MS) continue;
+      finishEarly(g);
+      this.recordEnd(t, 'abandoned');
+      this.pushChat(t, { system: true, text: 'Пуля брошена: больше суток без ходов.' });
+      this.save();
+    }
+  }
+
+  // Статистика игроков стола + рейтинг
+  statsFor(t, userId) {
+    const ids = new Set([userId, ...(t ? t.seats.filter((s) => s && !s.bot).map((s) => s.id) : [])]);
+    const table = [...ids].map((id) => {
+      const seat = t?.seats.find((s) => s?.id === id);
+      return this.stats.view(id) || { id, name: seat?.name || '—', finished: 0, unfinished: 0, whists: 0, games: 0, finishRate: null };
+    });
+    return { table, top: this.stats.top(20) };
+  }
+
   seatOf(t, userId) { return t.seats.findIndex((s) => s && s.id === userId); }
 
   sit(t, user, seat) {
-    if (t.game) throw new Error('Партия уже идёт');
+    if (t.game && t.game.phase !== 'gameOver') throw new Error('Партия уже идёт');
     if (this.seatOf(t, user.id) !== -1) throw new Error('Вы уже за столом');
     if (seat == null) seat = t.seats.findIndex((s) => !s);
     if (seat < 0 || seat > 2 || t.seats[seat]) throw new Error('Место занято');
@@ -256,6 +299,7 @@ export class Tables {
       this.emit(t, { type: 'announce', text: `📋 ${r.title}\n${r.lines.join('\n')}` });
     }
     if (g.phase === 'gameOver' && before.phase !== 'gameOver') {
+      this.recordEnd(t, 'normal');
       const lines = g.players.map((p, s) => `${p.name}: ${g.final[s] > 0 ? '+' : ''}${g.final[s]}`);
       this.emit(t, { type: 'announce', text: `🏁 Пуля закрыта!\n${lines.join('\n')}` });
     }

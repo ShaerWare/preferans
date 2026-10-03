@@ -95,6 +95,7 @@ function handle(client, msg) {
     }
     if (!auth) throw new Error('Не удалось проверить вход через Telegram');
     client.user = auth.user;
+    tables.stats.touch(client.user);
     // ссылка на стол (?table= или start_param) → иначе активная партия игрока → иначе последний стол
     const t0 = msg.noResume ? null : tables.resolveTable(client.user.id, msg.tableId || auth.startParam, msg.lastTableId);
     client.tableId = t0?.id || null;
@@ -123,6 +124,12 @@ function handle(client, msg) {
     return;
   }
 
+  // статистика нужна и из меню, без стола
+  if (msg.t === 'stats') {
+    send(client.ws, { t: 'stats', ...tables.statsFor(tables.get(client.tableId), client.user.id) });
+    return;
+  }
+
   const t = tables.get(client.tableId);
   if (!t) throw new Error('Стол не найден');
   switch (msg.t) {
@@ -139,7 +146,8 @@ function handle(client, msg) {
     case 'takeover': tables.takeover(t, client.user, msg.seat, msg.level); break;
     case 'reclaim': tables.reclaim(t, client.user); break;
     case 'finish': tables.finish(t, client.user); break;
-    case 'leave': // «В меню»: отключаемся от стола, партия остаётся
+    case 'leave': // «В меню»: идущая партия остаётся за игроком; после конца пули и в лобби место освобождаем
+      if (!t.game || t.game.phase === 'gameOver') tables.stand(t, client.user);
       client.tableId = null;
       presenceChanged({ ...client, tableId: t.id });
       send(client.ws, { t: 'welcome', me: client.user, tableId: null });
@@ -244,6 +252,8 @@ if (BOT_TOKEN) {
 
 tables.aiDelay = Number(process.env.AI_DELAY ?? 1); // пауза «на подумать» у ботов
 tables.scheduleAll();
+tables.sweepStale();
+setInterval(() => tables.sweepStale(), 10 * 60 * 1000); // брошенные пули
 server.listen(PORT, () => console.log(`[http] http://localhost:${PORT}${DEV ? '  (DEV: /?dev=Имя&table=ID)' : ''}`));
 
 function loadEnv(file) {

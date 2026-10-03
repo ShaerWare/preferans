@@ -204,3 +204,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .trick.peek .pos-right { right: 0; top: 0; }
 .peek-cap { position: absolute; left: 0; bottom: 6px; font-size: 12px; color: var(--muted); }
 .trick.peek .pos-left, .trick.peek .pos-right { transform: none; }
+
+/* статистика игроков */
+#stats-body { overflow-y: auto; padding-bottom: 8px; }
+.stats-sec { font-weight: 700; margin: 10px 0 4px; }
+.sheet-table tr.me td { background: rgba(242,193,78,.12); }
+.sheet-table small { color: var(--muted); }

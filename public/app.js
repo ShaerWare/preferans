@@ -64,6 +64,7 @@ function onMessage(m) {
       break;
     case 'emote': showEmote(m.fromId, m.e); break;
     case 'error': toast(m.text); break;
+    case 'stats': S.stats = m; renderStats(); break;
   }
 }
 
@@ -132,7 +133,8 @@ function render() {
   if (!S.me) { scr.innerHTML = `<div class="lobby"><div class="hint">${tg?.initData || DEV_NAME ? 'Подключение…' : 'Откройте игру через Telegram-бота.'}</div></div>`; return; }
   if (!S.tableId) { scr.innerHTML = noTableHtml(); return; }
   if (!S.table) { scr.innerHTML = '<div class="lobby"><div class="hint">Загрузка стола…</div></div>'; return; }
-  if (!S.view) { scr.innerHTML = lobbyHtml(); return; }
+  // нет партии или пуля закрыта и кто-то ушёл — лобби: можно позвать людей или посадить ИИ
+  if (!S.view || (S.view.phase === 'gameOver' && S.table.seats.some((s) => !s))) { scr.innerHTML = lobbyHtml(); return; }
   scr.innerHTML = tableHtml();
   layoutHand();
   if (!$('#score-panel').hidden) renderScore();
@@ -434,7 +436,8 @@ function resultHtml() {
   const finals = over ? `<div class="row">${v.players.map((p, s) => `<span>${esc(p.name)}: <b class="${v.final[s] >= 0 ? 'pos' : 'neg'}">${v.final[s] > 0 ? '+' : ''}${v.final[s]}</b></span>`).join('')}</div>` : '';
   const details = r ? `<details class="result-lines"><summary>Подробнее о раздаче</summary>${r.lines.map((x) => `<div>${esc(x)}</div>`).join('')}</details>` : '';
   const btn = v.seat == null ? ''
-    : over ? `${settingsHtml()}<button class="btn" data-act="start">Новая пуля</button>`
+    : over ? `<div class="row"><button class="btn" data-act="leave">🏠 В общее меню</button><button class="btn ghost" data-act="start">🔁 Ещё пулю этим же составом</button></div>
+      <details class="result-lines"><summary>Настройки новой пули</summary><div class="lobby" style="margin:0">${settingsHtml()}</div></details>`
     : '<button class="btn" data-act="next">Следующая раздача</button>';
   return `<div class="deal-end">
     <div class="result-title">${over ? '🏁 Пуля закрыта' : `№${v.dealNo} · ${esc(r?.title || '')}`}</div>
@@ -594,6 +597,30 @@ function renderScore() {
     <div class="row" style="margin-top:12px">${tableMenuHtml()}</div>`;
 }
 
+// ---------- статистика игроков ----------
+const signed = (x) => `<b class="${x >= 0 ? 'pos' : 'neg'}">${x > 0 ? '+' : ''}${Math.round(x * 100) / 100}</b>`;
+
+function statsRow(p, rank) {
+  const mine = p.id === S.me?.id;
+  return `<tr class="${mine ? 'me' : ''}"><td>${rank ? `${rank}. ` : ''}${esc(p.name)}${mine ? ' (вы)' : ''}</td>
+    <td>${p.finished}</td><td>${p.unfinished}${p.finishRate != null && p.unfinished ? ` <small>(${100 - p.finishRate}%)</small>` : ''}</td><td>${signed(p.whists)}</td></tr>`;
+}
+
+function renderStats() {
+  const body = $('#stats-body');
+  if (!S.stats) { body.innerHTML = '<div class="hint">Загрузка…</div>'; return; }
+  const head = '<tr><th></th><th>Доиграно</th><th>Брошено</th><th>Висты</th></tr>';
+  const title = S.tableId ? 'За этим столом' : 'Ваша статистика';
+  const top = S.stats.top.length
+    ? `<table class="sheet-table">${head}${S.stats.top.map((p, i) => statsRow(p, i + 1)).join('')}</table>`
+    : '<div class="hint">Пока никто не доиграл ни одной пули.</div>';
+  body.innerHTML = `<div class="stats-sec">${title}</div>
+    <div style="overflow-x:auto"><table class="sheet-table">${head}${S.stats.table.map((p) => statsRow(p)).join('')}</table></div>
+    <div class="stats-sec">🏆 Рейтинг по вистам</div>
+    <div style="overflow-x:auto">${top}</div>
+    <div class="hint" style="margin-top:8px">Пуля — одна игра до закрытия. «Брошено» — закончил досрочно, ушёл и за него доиграл ИИ, или пуля простояла больше суток. Висты — сумма итогов всех пуль: выигрыш прибавляется, проигрыш вычитается. Боты в статистику не входят.</div>`;
+}
+
 // ---------- чат ----------
 function renderBadge() {
   const b = $('#chat-badge');
@@ -671,7 +698,8 @@ document.addEventListener('click', (e) => {
       send({ t: 'hello', initData: tg?.initData || '', dev: DEV_NAME, lastTableId: store.get('tableId') });
       break;
     case 'leave':
-      S.noResume = true; // не возвращать автоматически, пока сам не выберет стол
+      // из идущей партии — не возвращать автоматически, пока сам не выберет; после конца пули возвращаться некуда
+      S.noResume = !!S.view && S.view.phase !== 'gameOver';
       S.table = null; S.view = null; S.chat = [];
       rememberTable(null);
       $('#score-panel').hidden = true;
@@ -726,7 +754,13 @@ document.addEventListener('click', (e) => {
 });
 
 $('#btn-chat').onclick = () => { $('#score-panel').hidden = true; const p = $('#chat-panel'); p.hidden = !p.hidden; S.unread = 0; renderChat(); };
-$('#btn-score').onclick = () => { $('#chat-panel').hidden = true; const p = $('#score-panel'); p.hidden = !p.hidden; renderScore(); };
+$('#btn-score').onclick = () => { $('#chat-panel').hidden = true; $('#stats-panel').hidden = true; const p = $('#score-panel'); p.hidden = !p.hidden; renderScore(); };
+$('#btn-stats').onclick = () => {
+  $('#chat-panel').hidden = true; $('#score-panel').hidden = true;
+  const p = $('#stats-panel');
+  p.hidden = !p.hidden;
+  if (!p.hidden) { renderStats(); send({ t: 'stats' }); }
+};
 const openGroup = (e) => { e?.preventDefault(); if (S.table?.chatLink) tg ? tg.openTelegramLink(S.table.chatLink) : window.open(S.table.chatLink); };
 $('#btn-group').onclick = openGroup;
 $('#call-join').onclick = openGroup;
