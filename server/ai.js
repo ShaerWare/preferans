@@ -1,7 +1,7 @@
 // ИИ-игроки для «Сочинки». Бот видит только то, что видел бы человек на его месте:
 // свою руку, открытые карты, прикуп (если открыт), вышедшие карты и выявленные «ренонсы».
 import { SUITS, RANKS, BIDS, bidIndex, bidLevel, bidTrump } from './rules.js';
-import { legalBids, legalContracts, legalWhist, newDeck, proposalPending } from './engine.js';
+import { legalBids, legalContracts, legalWhist, misereOpen, newDeck, proposalPending } from './engine.js';
 
 export const AI_LEVELS = {
   novice: { label: 'Новичок', samples: 6, noise: 1.6, randomPlay: 0.4, memory: false, mc: 0, misereSlack: 2 },
@@ -388,8 +388,8 @@ function decideWhist(state, seat, lvl, rng) {
   const K = 20 / 3; // очко горы ≈ 6,7 виста
   const dist = defenseDist(state, seat, lvl, rng);
   const ev = partnerWhists
-    ? mean(dist.map((x) => v * x.mine - (x.mine < O / 2 ? (v / 2) * (O / 2 - x.mine) * K : 0)))
-    : mean(dist.map((x) => v * x.team - (x.team < O ? (v / 2) * (O - x.team) * K : 0)));
+    ? mean(dist.map((x) => v * x.mine - (x.mine < O / 2 ? v * (O / 2 - x.mine) * K : 0)))
+    : mean(dist.map((x) => v * x.team - (x.team < O ? v * (O - x.team) * K : 0)));
   const noisy = ev + (lvl.noise ? gauss(rng) * lvl.noise * v * 2 : 0);
   if (legal.includes('HALF') && noisy < v * (O / 2)) return 'HALF';
   return noisy > 0 ? 'WHIST' : 'PASS';
@@ -437,11 +437,12 @@ function sampleHands(state, actor, rng) {
   for (const s of visible) for (const c of state.hands[s]) known.add(c);
   if (p.kind === 'raspas') for (const c of state.talon) known.add(c);
   const hasDiscard = p.kind !== 'raspas';
-  if (hasDiscard && actor === state.declarer) for (const c of state.discard) known.add(c);
+  const discardKnown = hasDiscard && (actor === state.declarer || (p.kind === 'misere' && misereOpen(state)));
+  if (discardKnown) for (const c of state.discard) known.add(c);
   const talonSet = new Set(p.kind !== 'raspas' ? state.talon : []);
   const unknown = DECK.filter((c) => !known.has(c));
   const locs = [0, 1, 2].filter((s) => !visible.has(s)).map((s) => ({ seat: s, cap: state.hands[s].length }));
-  if (hasDiscard && actor !== state.declarer) locs.push({ seat: 'discard', cap: 2 });
+  if (hasDiscard && !discardKnown) locs.push({ seat: 'discard', cap: 2 });
   const voids = knownVoids(state);
 
   for (let attempt = 0; attempt < 40; attempt++) {

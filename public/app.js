@@ -258,6 +258,25 @@ function playerTags(s) {
   return tags.join('');
 }
 
+// Открытый мизер: все 12 карт мизериста по мастям. Ушедшие во взятку — бледные с номером хода,
+// снесённые — с пометкой «снос», последняя сыгранная — в золотой рамке.
+function misereLayoutHtml() {
+  const m = S.view.misere;
+  const played = new Map(m.played.map((x) => [x.card, x.trickNo]));
+  const discard = new Set(m.discard);
+  const last = m.played.length ? m.played[m.played.length - 1].card : null;
+  const sorted = sortHand(m.cards, null);
+  const suits = [...new Set(sorted.map((c) => c.slice(-1)))];
+  const rows = suits.map((suit) => `<div class="mis-row">${sorted.filter((c) => c.slice(-1) === suit).map((c) => {
+    const badge = discard.has(c) ? '<span class="mis-badge snos">снос</span>'
+      : played.has(c) ? `<span class="mis-badge">${played.get(c)}</span>` : '';
+    const cls = `mini ${discard.has(c) ? 'snos' : played.has(c) ? 'gone' : ''} ${c === last ? 'last' : ''}`;
+    return `<div class="mis-slot">${cardHtml(c, { cls })}${badge}</div>`;
+  }).join('')}</div>`).join('');
+  const inHand = m.cards.length - m.discard.length - m.played.length;
+  return `<div class="mis-layout"><div class="mis-cap">расклад мизера · на руке ${inHand}</div>${rows}</div>`;
+}
+
 function oppHtml(s) {
   const v = S.view;
   const p = v.players[s];
@@ -265,7 +284,9 @@ function oppHtml(s) {
   const hand = v.hands[s];
   const clickable = v.legal.playSeat === s ? new Set(v.legal.cards) : null;
   let cards;
-  if (hand) {
+  if (v.misere && s === v.declarer) {
+    cards = misereLayoutHtml();
+  } else if (hand) {
     cards = `<div class="mini-hand">${sortHand(hand, v.play?.trump).map((c) => cardHtml(c, { cls: `mini ${clickable ? (clickable.has(c) ? 'legal' : 'dim') : ''}`, attrs: clickable?.has(c) ? `data-play="${c}"` : '' })).join('')}</div>`;
   } else {
     cards = `<div class="backs">${'<div class="back"></div>'.repeat(v.handCounts[s])}</div>`;

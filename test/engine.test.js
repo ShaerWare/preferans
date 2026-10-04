@@ -391,6 +391,34 @@ test('мизер: ловящие по очереди решают, кто лов
   assert.equal(viewFor(s, 2).hands[0], null); // напарник руку ловящего не видит
 });
 
+test('мизер в открытую: всем видны 12 карт мизериста — рука, сыгранные и снос', () => {
+  const s = misereDeal();
+  const discard = [...s.discard];
+  act(s, 2, { type: 'catch', take: true });
+  for (const seat of [0, 2, null]) {
+    const m = viewFor(s, seat).misere;
+    assert.equal(m.cards.length, 12);
+    assert.deepEqual(m.discard, discard);
+    assert.ok(discard.every((c) => m.cards.includes(c)));
+    assert.ok(viewFor(s, seat).hands[1]); // рука мизериста открыта
+  }
+  // доигрываем первую взятку — карта мизериста отмечается как сыгранная
+  while (s.play.trickNo === 0) act(s, s.play.controller[s.play.turn], { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  const m = viewFor(s, 0).misere;
+  assert.equal(m.played.length, 1);
+  assert.equal(m.played[0].trickNo, 1);
+  assert.ok(!s.hands[1].includes(m.played[0].card));
+  // а без правила — как раньше
+  const t = game({ misereOpen: false });
+  act(t, 1, { type: 'bid', bid: 'MIS' });
+  act(t, 2, { type: 'bid', bid: 'PASS' });
+  act(t, 0, { type: 'bid', bid: 'PASS' });
+  act(t, 1, { type: 'discard', cards: t.hands[1].slice(0, 2), contract: 'MIS' });
+  act(t, 2, { type: 'catch', take: true });
+  assert.equal(viewFor(t, 0).misere, null);
+  assert.equal(viewFor(t, 0).hands[1], null);
+});
+
 test('мизер: отказались оба — ловит первый', () => {
   const s = misereDeal();
   act(s, 2, { type: 'catch', take: false });

@@ -61,6 +61,7 @@ export function startDeal(state, rng) {
   state.talon = deck.slice(30);
   state.talonOpen = false;
   state.discard = [];
+  state.misereCards = null;
   state.declarer = null;
   state.contract = null;
   state.whist = null;
@@ -172,6 +173,7 @@ function doDiscard(state, seat, cards, contract) {
   state.contract = contract;
   say(state, `${state.players[seat].name} заказал ${bidLabel(contract)}.`);
   if (contract === 'MIS') {
+    state.misereCards = [...hand]; // все 12 карт мизериста (рука + прикуп) — для открытого расклада
     // ловящие по очереди решают, кто из них ловит (играет за обе руки)
     const a = next(seat);
     state.catch = { order: [a, next(a)], turn: a, declined: [], catcher: null };
@@ -292,6 +294,7 @@ function startPlay(state, kind) {
     const partner = state.catch.order.find((s) => s !== state.catch.catcher);
     controller[partner] = state.catch.catcher;
   }
+  if (kind === 'misere' && misereOpen(state)) open.push(state.declarer); // мизерист играет в открытую
   state.play = {
     kind,
     trump: trump === 'N' ? null : trump,
@@ -362,7 +365,7 @@ function doPlay(state, userSeat, card) {
   if (w != null) p.leader = w;
   // на мизере ловящие открывают карты после первого хода
   if (p.kind === 'misere' && p.trickNo === 1) {
-    p.open = [0, 1, 2].filter((s) => s !== state.declarer);
+    p.open = [...new Set([...p.open, ...[0, 1, 2].filter((s) => s !== state.declarer)])];
   }
   if (p.trickNo === 10) return settle(state, { kind: p.kind });
   beginTrick(state);
@@ -591,7 +594,7 @@ function settle(state, { kind }) {
         sc.whists[ws][d] += v * dt;
         lines.push(`${name(ws)} (вист): ${dt} взят. → висты +${v * dt}`);
         if (cfg.responsibleWhist && !w.forced && got >= need && dt < O) {
-          const pen = (v / 2) * (O - dt);
+          const pen = v * (O - dt);
           sc.mountain[ws] += pen;
           lines.push(`${name(ws)}: недобор виста ${O - dt} → гора +${pen}`);
         }
@@ -602,7 +605,7 @@ function settle(state, { kind }) {
         }
         if (cfg.responsibleWhist && !w.forced && got >= need) {
           for (const [s, short] of whistShortfall(O, a, b, tricks[a], tricks[b])) {
-            const pen = (v / 2) * short;
+            const pen = v * short;
             sc.mountain[s] += pen;
             lines.push(`${name(s)}: недобор виста ${short} → гора +${pen}`);
           }
@@ -687,6 +690,19 @@ export function act(state, seat, action) {
   return ev;
 }
 
+// Мизер в открытую: все видят 12 карт мизериста — что на руке, что ушло во взятки, что в сносе
+export const misereOpen = (state) => state.contract === 'MIS' && state.config.misereOpen !== false && !!state.misereCards;
+
+function misereLayout(state) {
+  const p = state.play;
+  if (!p || p.kind !== 'misere' || !misereOpen(state)) return null;
+  const d = state.declarer;
+  const played = [];
+  p.history.forEach((t, i) => { for (const x of t.cards) if (x.seat === d) played.push({ card: x.card, trickNo: i + 1 }); });
+  for (const x of p.trick) if (x.seat === d) played.push({ card: x.card, trickNo: p.trickNo + 1 });
+  return { cards: state.misereCards, discard: state.discard, played };
+}
+
 // Что видит конкретный игрок (seat = null — зритель)
 export function viewFor(state, seat) {
   const p = state.play;
@@ -711,7 +727,8 @@ export function viewFor(state, seat) {
     hands: [0, 1, 2].map((s) => (handVisible(s) ? state.hands[s] : null)),
     handCounts: state.hands.map((h) => h.length),
     talon: state.talonOpen ? state.talon : null,
-    discard: seat != null && seat === state.declarer && state.phase !== 'bidding' ? state.discard : null,
+    discard: (seat != null && seat === state.declarer && state.phase !== 'bidding') || misereLayout(state) ? state.discard : null,
+    misere: misereLayout(state),
     declarer: state.declarer,
     contract: state.contract,
     bidding: state.bidding && {
