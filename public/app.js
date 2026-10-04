@@ -77,7 +77,7 @@ function onState(m) {
   else if (S.proposeSel != null && !v.legal.proposeOptions.includes(S.proposeSel)) S.proposeSel = defaultProposal(v);
   // показать закрытую взятку ещё немного
   // сыграна новая взятка (или новая раздача) — «последнюю взятку» прячем
-  if (!v?.play || (prev?.play && v.play.trickNo !== prev.play.trickNo)) S.peekLast = false;
+  if (!v?.play || (prev?.play && v.play.trickNo !== prev.play.trickNo)) { S.peekLast = false; S.peekTalon = false; }
   if (v?.play && prev?.play && v.play.trickNo > prev.play.trickNo && v.play.lastTrick) {
     S.lastTrickShow = { trick: v.play.lastTrick, until: Date.now() + 1400 };
     setTimeout(render, 1450);
@@ -314,6 +314,9 @@ function centerHtml() {
     inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div></div></div>`;
   } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || v.phase === 'misereCatch' || (v.phase === 'dealEnd' && !v.play)) {
     inner = v.talon ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
+  } else if (v.play && S.peekTalon && v.talon) {
+    // «Прикуп»: какие карты лежали в прикупе
+    inner = `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>`;
   } else if (v.play && S.peekLast && v.play.lastTrick) {
     // «Последняя взятка»: кто чем сходил и кто взял
     const lt = v.play.lastTrick;
@@ -332,10 +335,14 @@ function centerHtml() {
       ${trick.map((t) => cardHtml(t.card, { cls: `pos-${rel(t.seat)} ${winner === t.seat ? 'winner' : ''}` })).join('')}
     </div>`;
   }
-  const peekBtn = v.phase === 'play' && v.play?.lastTrick
-    ? `<button class="peek-btn ${S.peekLast ? 'on' : ''}" data-act="peek">${S.peekLast ? '✕ Вернуться к столу' : '👁 Последняя взятка'}</button>`
+  const talonBtn = v.phase === 'play' && v.talon
+    ? `<button class="peek-btn ${S.peekTalon ? 'on' : ''}" data-act="peekTalon">${S.peekTalon ? '✕ К столу' : '🂠 Прикуп'}</button>`
     : '';
-  return `<div class="center"><div class="contract-info">${info}</div>${inner}${peekBtn}</div>`;
+  const peekBtn = v.phase === 'play' && v.play?.lastTrick
+    ? `<button class="peek-btn ${S.peekLast ? 'on' : ''}" data-act="peek">${S.peekLast ? '✕ К столу' : '👁 Последняя взятка'}</button>`
+    : '';
+  const peekBar = talonBtn || peekBtn ? `<div class="peek-bar">${talonBtn}${peekBtn}</div>` : '';
+  return `<div class="center"><div class="contract-info">${info}</div>${inner}${peekBar}</div>`;
 }
 
 function actionsHtml() {
@@ -753,7 +760,8 @@ document.addEventListener('click', (e) => {
       S.confirmRest = false;
       send({ t: 'act', action: { type: 'takeRest' } });
       break;
-    case 'peek': S.peekLast = !S.peekLast; render(); break;
+    case 'peek': S.peekLast = !S.peekLast; S.peekTalon = false; render(); break;
+    case 'peekTalon': S.peekTalon = !S.peekTalon; S.peekLast = false; render(); break;
     case 'catch': send({ t: 'act', action: { type: 'catch', take: d.take === '1' } }); break;
     case 'w3':
       if (!S.confirmW3) { S.confirmW3 = true; render(); break; }

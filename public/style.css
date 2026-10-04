@@ -194,7 +194,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .result-lines summary { cursor: pointer; text-align: center; padding: 4px; }
 
 /* «Последняя взятка» */
-.peek-btn { position: absolute; right: 0; bottom: 4px; border: 0; border-radius: 8px; padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,.35); color: var(--ink); z-index: 2; }
+.peek-bar { position: absolute; right: 0; bottom: 4px; display: flex; gap: 6px; z-index: 2; }
+.peek-btn { border: 0; border-radius: 8px; padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,.35); color: var(--ink); z-index: 2; }
 .peek-btn.on { background: var(--gold); color: #222; }
 .trick.peek .peek-card { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .trick.peek .peek-card .card { position: static; transform: none; }
