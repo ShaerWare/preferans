@@ -310,7 +310,8 @@ function centerHtml() {
   if (v.phase === 'bidding') {
     inner = `<div><div class="talon-label">прикуп</div><div class="talon"><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div><div class="card mini" style="background:repeating-linear-gradient(45deg,#8b1e2b 0 3px,#a8283a 3px 6px)"></div></div></div>`;
   } else if (v.phase === 'talon' || v.phase === 'whisting' || v.phase === 'whistMode' || v.phase === 'misereCatch' || (v.phase === 'dealEnd' && !v.play)) {
-    inner = v.talon ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
+    const inPanel = v.phase === 'talon' && v.legal.contracts.length; // сносящему прикуп показан в панели заказа
+    inner = v.talon && !inPanel ? `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>` : '';
   } else if (v.play && S.peekTalon && v.talon) {
     // «Прикуп»: какие карты лежали в прикупе
     inner = `<div><div class="talon-label">прикуп</div><div class="talon">${v.talon.map((c) => cardHtml(c)).join('')}</div></div>`;
@@ -359,7 +360,13 @@ function actionsHtml() {
       if (!l.contracts.length) return wait(`<b>${name(v.declarer)}</b> взял прикуп и сносит…`);
       const mis = l.contracts[0] === 'MIS';
       const ready = S.discardSel.size === 2 && (mis || S.contractSel);
-      return `<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
+      // прикуп и выбранный снос — прямо в панели, чтобы сетка заказов их не закрывала
+      const sel = [...S.discardSel];
+      const talonRow = `<div class="talon-strip">
+        ${v.talon ? `<span class="ts-label">прикуп</span>${v.talon.map((c) => cardHtml(c, { cls: 'mini' })).join('')}` : ''}
+        <span class="ts-label">в снос</span>${[0, 1].map((i) => (sel[i] ? cardHtml(sel[i], { cls: 'mini' }) : '<div class="card mini ts-empty"></div>')).join('')}
+      </div>`;
+      return `${talonRow}<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
         ${mis ? '' : bidGrid(l.contracts, 'contract', S.contractSel)}
         <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button>
         ${l.withoutThree ? `<button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? 'Точно без трёх?' : '🏳️ Без трёх'}</button>` : ''}</div>
@@ -487,7 +494,7 @@ function tableHtml() {
   const handCards = sortHand(myHand, v.play?.trump || (v.contract && v.contract !== 'MIS' ? v.contract.slice(-1).replace('N', '') : null)).map((c) => {
     let cls = '';
     let attrs = '';
-    if (selecting) { cls = `legal ${S.discardSel.has(c) ? 'sel' : ''}`; attrs = `data-pick="${c}"`; }
+    if (selecting) { cls = `legal ${S.discardSel.has(c) ? 'sel' : ''} ${v.talon?.includes(c) ? 'from-talon' : ''}`; attrs = `data-pick="${c}"`; }
     else if (v.phase === 'play' && v.legal.playSeat === me) { cls = legal.has(c) ? 'legal' : 'dim'; if (legal.has(c)) attrs = `data-play="${c}"`; }
     return cardHtml(c, { cls, attrs });
   }).join('');
