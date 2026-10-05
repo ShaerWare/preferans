@@ -405,17 +405,19 @@ test('мизер: ловящие по очереди решают, кто лов
   assert.equal(viewFor(s, 2).hands[0], null); // напарник руку ловящего не видит
 });
 
-test('мизер в открытую: всем видны 12 карт мизериста — рука, сыгранные и снос', () => {
+test('мизер в открытую: всем видны 12 карт мизериста и сыгранные, снос — нет', () => {
   const s = misereDeal();
   const discard = [...s.discard];
   act(s, 2, { type: 'catch', take: true });
   for (const seat of [0, 2, null]) {
-    const m = viewFor(s, seat).misere;
-    assert.equal(m.cards.length, 12);
-    assert.deepEqual(m.discard, discard);
-    assert.ok(discard.every((c) => m.cards.includes(c)));
-    assert.ok(viewFor(s, seat).hands[1]); // рука мизериста открыта
+    const v = viewFor(s, seat);
+    assert.equal(v.misere.cards.length, 12);
+    assert.ok(discard.every((c) => v.misere.cards.includes(c)));
+    assert.equal(v.misere.discard, undefined); // какие снесены — не говорим
+    assert.equal(v.discard, null);
+    assert.equal(v.hands[1], null); // по руке снос не вычислить
   }
+  assert.deepEqual(viewFor(s, 1).discard, discard); // сам мизерист свой снос видит
   // доигрываем первую взятку — карта мизериста отмечается как сыгранная
   while (s.play.trickNo === 0) act(s, s.play.controller[s.play.turn], { type: 'play', card: legalCards(s, s.play.turn)[0] });
   const m = viewFor(s, 0).misere;

@@ -258,23 +258,20 @@ function playerTags(s) {
   return tags.join('');
 }
 
-// Открытый мизер: все 12 карт мизериста по мастям. Ушедшие во взятку — бледные с номером хода,
-// снесённые — с пометкой «снос», последняя сыгранная — в золотой рамке.
+// Открытый мизер: все 12 карт мизериста по мастям, без пометки сноса. Ушедшие во взятку —
+// бледные с номером хода, последняя сыгранная — в золотой рамке.
 function misereLayoutHtml() {
   const m = S.view.misere;
   const played = new Map(m.played.map((x) => [x.card, x.trickNo]));
-  const discard = new Set(m.discard);
   const last = m.played.length ? m.played[m.played.length - 1].card : null;
   const sorted = sortHand(m.cards, null);
   const suits = [...new Set(sorted.map((c) => c.slice(-1)))];
   const rows = suits.map((suit) => `<div class="mis-row">${sorted.filter((c) => c.slice(-1) === suit).map((c) => {
-    const badge = discard.has(c) ? '<span class="mis-badge snos">снос</span>'
-      : played.has(c) ? `<span class="mis-badge">${played.get(c)}</span>` : '';
-    const cls = `mini ${discard.has(c) ? 'snos' : played.has(c) ? 'gone' : ''} ${c === last ? 'last' : ''}`;
+    const badge = played.has(c) ? `<span class="mis-badge">${played.get(c)}</span>` : '';
+    const cls = `mini ${played.has(c) ? 'gone' : ''} ${c === last ? 'last' : ''}`;
     return `<div class="mis-slot">${cardHtml(c, { cls })}${badge}</div>`;
   }).join('')}</div>`).join('');
-  const inHand = m.cards.length - m.discard.length - m.played.length;
-  return `<div class="mis-layout"><div class="mis-cap">расклад мизера · на руке ${inHand}</div>${rows}</div>`;
+  return `<div class="mis-layout"><div class="mis-cap">карты мизериста (12 с прикупом)</div>${rows}</div>`;
 }
 
 function oppHtml(s) {

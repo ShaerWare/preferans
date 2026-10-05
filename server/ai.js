@@ -437,12 +437,13 @@ function sampleHands(state, actor, rng) {
   for (const s of visible) for (const c of state.hands[s]) known.add(c);
   if (p.kind === 'raspas') for (const c of state.talon) known.add(c);
   const hasDiscard = p.kind !== 'raspas';
-  const discardKnown = hasDiscard && (actor === state.declarer || (p.kind === 'misere' && misereOpen(state)));
-  if (discardKnown) for (const c of state.discard) known.add(c);
+  if (hasDiscard && actor === state.declarer) for (const c of state.discard) known.add(c);
+  // открытый мизер: 12 карт мизериста известны — несыгранные лежат у него на руке или в сносе, остальные — нет
+  const misSet = p.kind === 'misere' && actor !== state.declarer && misereOpen(state) ? new Set(state.misereCards) : null;
   const talonSet = new Set(p.kind !== 'raspas' ? state.talon : []);
   const unknown = DECK.filter((c) => !known.has(c));
   const locs = [0, 1, 2].filter((s) => !visible.has(s)).map((s) => ({ seat: s, cap: state.hands[s].length }));
-  if (hasDiscard && !discardKnown) locs.push({ seat: 'discard', cap: 2 });
+  if (hasDiscard && actor !== state.declarer) locs.push({ seat: 'discard', cap: 2 });
   const voids = knownVoids(state);
 
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -450,12 +451,13 @@ function sampleHands(state, actor, rng) {
     const cap = locs.map((l) => l.cap);
     const got = locs.map(() => []);
     // сначала карты прикупа — они могут быть только у играющего или в сносе
-    const order = shuffled(unknown, rng).sort((a, b) => talonSet.has(b) - talonSet.has(a));
+    const order = shuffled(unknown, rng).sort((a, b) => talonSet.has(b) - talonSet.has(a) || (misSet ? misSet.has(b) - misSet.has(a) : 0));
     let ok = true;
     for (const c of order) {
       const cand = locs.map((l, i) => i).filter((i) => cap[i] > 0
         && (locs[i].seat === 'discard' || relax || !voids[locs[i].seat].has(suitOf(c)))
-        && (!talonSet.has(c) || locs[i].seat === 'discard' || locs[i].seat === state.declarer));
+        && (!talonSet.has(c) || locs[i].seat === 'discard' || locs[i].seat === state.declarer)
+        && (!misSet || misSet.has(c) === (locs[i].seat === 'discard' || locs[i].seat === state.declarer)));
       if (!cand.length) { ok = false; break; }
       let r = rng() * cand.reduce((s, i) => s + cap[i], 0);
       let chosen = cand[0];

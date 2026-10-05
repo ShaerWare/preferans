@@ -294,7 +294,6 @@ function startPlay(state, kind) {
     const partner = state.catch.order.find((s) => s !== state.catch.catcher);
     controller[partner] = state.catch.catcher;
   }
-  if (kind === 'misere' && misereOpen(state)) open.push(state.declarer); // мизерист играет в открытую
   state.play = {
     kind,
     trump: trump === 'N' ? null : trump,
@@ -692,7 +691,8 @@ export function act(state, seat, action) {
   return ev;
 }
 
-// Мизер в открытую: все видят 12 карт мизериста — что на руке, что ушло во взятки, что в сносе
+// Мизер в открытую: все видят 12 карт мизериста (рука + прикуп) и какие из них ушли во взятки.
+// Какие две снесены — не показываем, поэтому саму руку мизериста ловящим не отдаём.
 export const misereOpen = (state) => state.contract === 'MIS' && state.config.misereOpen !== false && !!state.misereCards;
 
 function misereLayout(state) {
@@ -702,7 +702,7 @@ function misereLayout(state) {
   const played = [];
   p.history.forEach((t, i) => { for (const x of t.cards) if (x.seat === d) played.push({ card: x.card, trickNo: i + 1 }); });
   for (const x of p.trick) if (x.seat === d) played.push({ card: x.card, trickNo: p.trickNo + 1 });
-  return { cards: state.misereCards, discard: state.discard, played };
+  return { cards: [...state.misereCards].sort(), played };
 }
 
 // Что видит конкретный игрок (seat = null — зритель)
@@ -729,7 +729,7 @@ export function viewFor(state, seat) {
     hands: [0, 1, 2].map((s) => (handVisible(s) ? state.hands[s] : null)),
     handCounts: state.hands.map((h) => h.length),
     talon: state.talonOpen ? state.talon : null,
-    discard: (seat != null && seat === state.declarer && state.phase !== 'bidding') || misereLayout(state) ? state.discard : null,
+    discard: seat != null && seat === state.declarer && state.phase !== 'bidding' ? state.discard : null,
     misere: misereLayout(state),
     declarer: state.declarer,
     contract: state.contract,
