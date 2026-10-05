@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, act, viewFor, legalBids, legalCards, finalBalance, whistShortfall, GameError } from '../server/engine.js';
+import { createGame, act, viewFor, legalBids, legalCards, finalBalance, whistShortfall, proposalPending, GameError } from '../server/engine.js';
 
 const players = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
 
@@ -323,6 +323,20 @@ test('Сталинград касается только 6♠', () => {
   const s = game({ stalingrad: true });
   orderGame(s, '6C');
   assert.equal(s.phase, 'whisting');
+});
+
+test('призовые висты за недобор играющего — только вистовавшему, пасовавшему ничего', () => {
+  const s = game();
+  orderGame(s, '6S');
+  act(s, 2, { type: 'whist', choice: 'WHIST' });
+  act(s, 0, { type: 'whist', choice: 'PASS' });
+  if (s.phase === 'whistMode') act(s, 2, { type: 'whistMode', open: false });
+  assert.equal(s.phase, 'play');
+  act(s, 1, { type: 'propose', declTricks: 4 }); // без 2
+  for (const seat of proposalPending(s)) act(s, seat, { type: 'answerProposal', accept: true });
+  assert.equal(s.score.mountain[1], 4); // 2 × 2
+  assert.equal(s.score.whists[0][1], 0); // пасовал — призовых нет
+  assert.equal(s.score.whists[2][1], 4 + 2 * 6); // призовые 4 + висты за 6 взяток защиты
 });
 
 test('без Сталинграда на 6♠ — обычный вист', () => {

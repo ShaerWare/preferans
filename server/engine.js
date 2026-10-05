@@ -584,8 +584,10 @@ function settle(state, { kind }) {
         const under = need - got;
         unplayed = true;
         sc.mountain[d] += v * under;
-        for (const s of [a, b]) sc.whists[s][d] += v * under;
-        lines.push(`${name(d)}: без ${under} → гора +${v * under}, каждому по ${v * under} вистов`);
+        // призовые висты — только вистовавшим; пасовавшему ничего
+        for (const s of w.whisters) sc.whists[s][d] += v * under;
+        const who = w.whisters.length === 2 ? `каждому вистующему по ${v * under}` : `${name(w.whisters[0])} +${v * under}`;
+        lines.push(`${name(d)}: без ${under} → гора +${v * under}, призовые висты: ${who}`);
       }
       // висты за взятки
       if (w.whisters.length === 1) {
