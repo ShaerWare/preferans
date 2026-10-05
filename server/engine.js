@@ -593,7 +593,7 @@ function settle(state, { kind }) {
         const dt = tricks[a] + tricks[b];
         sc.whists[ws][d] += v * dt;
         lines.push(`${name(ws)} (вист): ${dt} взят. → висты +${v * dt}`);
-        if (cfg.responsibleWhist && !w.forced && got >= need && dt < O) {
+        if (cfg.responsibleWhist && got >= need && dt < O) {
           const pen = v * (O - dt);
           sc.mountain[ws] += pen;
           lines.push(`${name(ws)}: недобор виста ${O - dt} → гора +${pen}`);
@@ -603,7 +603,7 @@ function settle(state, { kind }) {
           sc.whists[s][d] += v * tricks[s];
           lines.push(`${name(s)} (вист): ${tricks[s]} взят. → висты +${v * tricks[s]}`);
         }
-        if (cfg.responsibleWhist && !w.forced && got >= need) {
+        if (cfg.responsibleWhist && got >= need) {
           for (const [s, short] of whistShortfall(O, a, b, tricks[a], tricks[b])) {
             const pen = v * short;
             sc.mountain[s] += pen;

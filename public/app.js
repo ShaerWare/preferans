@@ -208,7 +208,7 @@ function settingsHtml() {
     <div class="hint">${RASPAS_PRICE_HINT[S.raspasPrices]} Круг — распасы подряд; несыгранная игра их не прерывает, после сыгранной снова 1.${S.raspasPrices === '1' ? ' Без взяток в пулю: при выходе с 6 — 1, с 7 — 2, с 8 — 4.' : ''}</div>
     <div>Сталинград (обязон):</div>
     <span class="seg"><button data-act="stal" data-v="0" class="${S.stalingrad ? '' : 'on'}">Нет</button><button data-act="stal" data-v="1" class="${S.stalingrad ? 'on' : ''}">Да</button></span>
-    <div class="hint">${S.stalingrad ? 'На 6♠ вистуют оба обязательно, в закрытую; за недовист не отвечают.' : 'На 6♠ вистуют по желанию, как на любой игре.'}</div>`;
+    <div class="hint">${S.stalingrad ? 'На 6♠ вистуют оба обязательно, в закрытую; за недовист отвечают как обычно.' : 'На 6♠ вистуют по желанию, как на любой игре.'}</div>`;
 }
 
 function levelSeg() {

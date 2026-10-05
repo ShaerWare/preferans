@@ -311,11 +311,11 @@ test('Сталинград: на 6♠ оба вистуют сразу, в за�
   assert.deepEqual(s.whist.whisters, [2, 0]);
   assert.equal(s.whist.open, false);
   assert.deepEqual(s.play.open, []);
-  // играющий забирает все взятки — за недовист обязательные вистующие не отвечают
+  // играющий забирает все взятки — обязательные вистующие тоже отвечают за недовист: по 2 × 2
   act(s, 1, { type: 'propose', declTricks: 10 });
   act(s, 2, { type: 'answerProposal', accept: true });
   act(s, 0, { type: 'answerProposal', accept: true });
-  assert.deepEqual(s.score.mountain, [0, 0, 0]);
+  assert.deepEqual(s.score.mountain, [4, 0, 4]);
   assert.equal(s.score.pool[1], 2);
 });
 
