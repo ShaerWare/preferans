@@ -370,11 +370,13 @@ function actionsHtml() {
         ${v.talon ? `<span class="ts-label">прикуп</span>${v.talon.map((c) => cardHtml(c, { cls: 'mini' })).join('')}` : ''}
         <span class="ts-label">в снос</span>${[0, 1].map((i) => (sel[i] ? cardHtml(sel[i], { cls: 'mini' }) : '<div class="card mini ts-empty"></div>')).join('')}
       </div>`;
-      return `${talonRow}<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
+      // «Уйти без 3-х» — сверху, над сеткой заказов: панель прокручивается и снизу кнопку не видно
+      const w3Gora = 3 * gameValue(v.bidding.highest.bid);
+      const w3 = l.withoutThree ? `<div class="row"><button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? `Точно уйти без 3-х? (гора +${w3Gora})` : `🏳️ Уйти без 3-х · гора +${w3Gora}`}</button></div>
+        ${S.confirmW3 ? `<div class="hint">Без розыгрыша: вам в гору ${w3Gora} (3 взятки по ${bidHtml(v.bidding.highest.bid)})${parseInt(v.bidding.highest.bid, 10) === 10 ? '' : ', противникам — висты'}. Нажмите ещё раз для подтверждения.</div>` : ''}` : '';
+      return `${talonRow}${w3}<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
         ${mis ? '' : bidGrid(l.contracts, 'contract', S.contractSel)}
-        <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button>
-        ${l.withoutThree ? `<button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? 'Точно без трёх?' : '🏳️ Без трёх'}</button>` : ''}</div>
-        ${S.confirmW3 ? `<div class="hint">Сдаётесь без розыгрыша: гора ${3 * gameValue(v.bidding.highest.bid)}${parseInt(v.bidding.highest.bid, 10) === 10 ? '' : ', противникам — висты'}. Нажмите ещё раз для подтверждения.</div>` : ''}`;
+        <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button></div>`;
     }
     case 'whisting':
       if (!l.whist.length) return wait(`<b>${name(t)}</b> решает: вист или пас`);
