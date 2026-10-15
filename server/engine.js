@@ -640,10 +640,27 @@ function settle(state, { kind }) {
   }
 }
 
-// Закончить пулю досрочно: расписываем по текущему счёту (недописанная пуля идёт в гору)
+// Закончить пулю досрочно: расписываем по текущему счёту — пулю всем выравниваем по самой
+// большой, недостающее каждому пишем и в пулю, и в гору (итог как у пули, сыгранной до этой отметки)
 export function finishEarly(state) {
   if (state.phase === 'gameOver') throw new GameError('Пуля уже закрыта');
   state._events = [];
+  const sc = state.score;
+  const top = Math.max(...sc.pool);
+  const before = scoreSnapshot(sc);
+  const lines = [];
+  for (const s of [0, 1, 2]) {
+    const gap = top - sc.pool[s];
+    if (gap <= 0) continue;
+    sc.pool[s] = top;
+    sc.mountain[s] += gap;
+    lines.push(`${state.players[s].name}: пуля и гора +${gap}`);
+  }
+  if (lines.length) {
+    recordTrail(state, before);
+    state.history.push({ dealNo: state.dealNo, title: `Роспись до ${top}`, lines });
+    say(state, `Роспись до ${top}: ${lines.join('; ')}`);
+  }
   state.phase = 'gameOver';
   state.final = finalBalance(state);
   say(state, 'Пуля закончена досрочно. ' + state.final.map((x, s) => `${state.players[s].name}: ${x > 0 ? '+' : ''}${x}`).join(', '));

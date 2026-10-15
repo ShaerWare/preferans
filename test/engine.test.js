@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, act, viewFor, legalBids, legalCards, finalBalance, whistShortfall, proposalPending, GameError } from '../server/engine.js';
+import { createGame, act, viewFor, legalBids, legalCards, finalBalance, finishEarly, whistShortfall, proposalPending, GameError } from '../server/engine.js';
 
 const players = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
 
@@ -619,4 +619,18 @@ test('десятерная без трёх: только гора, вистов 
   act(s, 1, { type: 'withoutThree' });
   assert.equal(s.score.mountain[1], 30);
   assert.deepEqual(s.score.whists, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
+});
+
+test('досрочный конец: пуля выравнивается по максимальной, разница — в гору', () => {
+  const g = createGame({ players: [{ name: 'А' }, { name: 'Б' }, { name: 'В' }], config: { poolTarget: 20 }, dealer: 0 });
+  g.score.pool = [6, 2, 2];
+  g.score.mountain = [0, 4, 0];
+  g.score.whists = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  finishEarly(g);
+  assert.deepEqual(g.score.pool, [6, 6, 6]);
+  assert.deepEqual(g.score.mountain, [0, 8, 4]);
+  assert.equal(g.phase, 'gameOver');
+  assert.equal(g.history.at(-1).title, 'Роспись до 6');
+  // как пуля до 6: гора 0/8/4, по 10 вистов за очко горы
+  assert.deepEqual(g.final, [40, -40, 0]);
 });
