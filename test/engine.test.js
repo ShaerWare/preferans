@@ -163,7 +163,7 @@ test('случайные партии доигрываются до конца',
   }
 });
 
-test('«без трёх» после прикупа: гора и висты противникам', () => {
+test('«без трёх» после прикупа: только гора, вистов нет', () => {
   const s = game();
   act(s, 1, { type: 'bid', bid: '7S' });
   act(s, 2, { type: 'bid', bid: 'PASS' });
@@ -173,9 +173,7 @@ test('«без трёх» после прикупа: гора и висты пр
   act(s, 1, { type: 'withoutThree' });
   assert.equal(s.phase, 'dealEnd');
   assert.equal(s.score.mountain[1], 12); // 3 × 4
-  // 3×4 за «без трёх» + 4 × (10 − 4) / 2 за взятки защиты
-  assert.equal(s.score.whists[2][1], 24);
-  assert.equal(s.score.whists[0][1], 24);
+  assert.deepEqual(s.score.whists, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
 });
 
 test('мизер «без трёх» не сдают', () => {

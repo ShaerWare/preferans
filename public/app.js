@@ -373,7 +373,7 @@ function actionsHtml() {
       // «Уйти без 3-х» — сверху, над сеткой заказов: панель прокручивается и снизу кнопку не видно
       const w3Gora = 3 * gameValue(v.bidding.highest.bid);
       const w3 = l.withoutThree ? `<div class="row"><button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? `Точно уйти без 3-х? (гора +${w3Gora})` : `🏳️ Уйти без 3-х · гора +${w3Gora}`}</button></div>
-        ${S.confirmW3 ? `<div class="hint">Без розыгрыша: вам в гору ${w3Gora} (3 взятки по ${bidHtml(v.bidding.highest.bid)})${parseInt(v.bidding.highest.bid, 10) === 10 ? '' : ', противникам — висты'}. Нажмите ещё раз для подтверждения.</div>` : ''}` : '';
+        ${S.confirmW3 ? `<div class="hint">Без розыгрыша: вам в гору ${w3Gora} (3 взятки по ${bidHtml(v.bidding.highest.bid)}), вистов противникам нет. Нажмите ещё раз для подтверждения.</div>` : ''}` : '';
       return `${talonRow}${w3}<div class="msg">Выберите 2 карты в снос${mis ? '' : ' и игру'}</div>
         ${mis ? '' : bidGrid(l.contracts, 'contract', S.contractSel)}
         <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button></div>`;

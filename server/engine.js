@@ -551,14 +551,10 @@ function settle(state, { kind }) {
   } else if (kind === 'w3') {
     const level = bidLevel(state.contract);
     const v = cfg.gameValue[level];
-    const each = (10 - (level - 3)) / 2; // защита как будто взяла остальное поровну
+    // только гора играющему, противникам вистов не пишем
     unplayed = true;
     sc.mountain[d] += 3 * v;
     lines.push(`${name(d)}: без трёх → гора +${3 * v}`);
-    if (level < 10) for (const s of [next(d), next(next(d))]) { // на десятерной вистов нет
-      sc.whists[s][d] += 3 * v + v * each;
-      lines.push(`${name(s)} → висты +${3 * v + v * each}`);
-    }
   } else {
     const level = bidLevel(state.contract);
     const v = cfg.gameValue[level];
