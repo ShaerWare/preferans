@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Калькулятор преферанса: подсчёт пули онлайн (сочинка, на троих)</title>
+  <meta name="description" content="Посчитайте итог пули в преферансе онлайн: введите пулю, гору и висты трёх игроков, калькулятор переведёт гору в висты и сведёт сальдо. Как считать пулю вручную — с примером.">
+  <link rel="canonical" href="https://artemshaer.ru/kalkulyator/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#154330">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:title" content="Калькулятор преферанса: подсчёт пули онлайн">
+  <meta property="og:description" content="Пуля, гора и висты трёх игроков → итог в вистах. С объяснением, как считать вручную.">
+  <meta property="og:url" content="https://artemshaer.ru/kalkulyator/">
+  <meta property="og:image" content="https://artemshaer.ru/og.png">
+  <link rel="stylesheet" href="/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "Калькулятор пули в преферансе",
+        "url": "https://artemshaer.ru/kalkulyator/",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Любой браузер",
+        "inLanguage": "ru",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Преферанс онлайн", "item": "https://artemshaer.ru/" },
+          { "@type": "ListItem", "position": 2, "name": "Калькулятор пули", "item": "https://artemshaer.ru/kalkulyator/" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="logo" href="/">♠ Преферанс <span>· Сочи</span></a>
+      <a href="/pravila/">Правила</a>
+      <a href="/kalkulyator/">Калькулятор пули</a>
+      <a href="/s-kompyuterom/">С компьютером</a>
+    </div>
+  </header>
+
+  <main class="wrap article">
+    <h1>Калькулятор пули в преферансе</h1>
+    <p class="lead">Перепишите из листа пулю, гору и висты каждого игрока. Итог пересчитывается сразу. Подходит для сочинки и любой игры на троих, где гора переводится в висты.</p>
+
+    <form class="calc" id="calc" autocomplete="off">
+      <div class="opts">
+        <label>Пуля до<br><input type="number" id="T" value="20" min="1" inputmode="numeric"></label>
+        <label>Вистов за очко горы<br><input type="number" id="k" value="10" min="1" inputmode="numeric"></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Игрок</th><th>Пуля</th><th>Гора</th><th colspan="2">Висты на соперников</th><th class="num">Итог</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p style="font-size:15px;color:var(--muted);margin:10px 0 0">Висты — сумма всех вистов, записанных игроком на соперника за пулю. Недописанная пуля автоматически добавляется в гору.</p>
+    </form>
+
+    <section>
+      <h2>Как считать пулю вручную</h2>
+      <ol>
+        <li><b>Добейте пулю горой.</b> Если пуля игрока не дописана до оговорённой суммы, недостающее прибавьте к его горе.</li>
+        <li><b>Переведите гору в висты.</b> Сложите горы всех троих и найдите среднюю. Каждое очко горы ниже средней даёт игроку 10 вистов в плюс, каждое очко выше средней — 10 вистов в минус.</li>
+        <li><b>Сведите висты попарно.</b> Для каждой пары игроков вычтите висты, записанные на вас, из вистов, записанных вами.</li>
+        <li><b>Сложите.</b> Итог игрока равен сумме пунктов 2 и 3. Итоги всех троих в сумме всегда дают ноль. Это удобно для самопроверки.</li>
+      </ol>
+      <p>Формула: <code>итог<sub>i</sub> = k × (Г − 3 × г<sub>i</sub>) / 3 + Σ (висты i на j − висты j на i)</code>, где <code>г<sub>i</sub></code> — гора игрока с учётом недописанной пули, <code>Г</code> — сумма гор, <code>k</code> — 10.</p>
+
+      <h3>Пример</h3>
+      <p>Пуля до 20, у всех закрыта. Горы: Аня 4, Боря 14, Вика 0. Сумма 18, средняя 6.</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th></th><th class="num">Гора → висты</th><th class="num">Сальдо вистов</th><th class="num">Итог</th></tr>
+          <tr><td>Аня (на Борю 30, на Вику 12)</td><td class="num">(6 − 4) × 10 = +20</td><td class="num">(30 − 8) + (12 − 10) = +24</td><td class="num"><b>+44</b></td></tr>
+          <tr><td>Боря (на Аню 8, на Вику 20)</td><td class="num">(6 − 14) × 10 = −80</td><td class="num">(8 − 30) + (20 − 16) = −18</td><td class="num"><b>−98</b></td></tr>
+          <tr><td>Вика (на Аню 10, на Борю 16)</td><td class="num">(6 − 0) × 10 = +60</td><td class="num">(10 − 12) + (16 − 20) = −6</td><td class="num"><b>+54</b></td></tr>
+        </table>
+      </div>
+      <p>Проверка: 44 − 98 + 54 = 0. <a href="#" id="load-example">Подставить пример в калькулятор</a></p>
+    </section>
+
+    <div class="cta">
+      <h2>Не хотите считать?</h2>
+      <p>В нашем преферансе в Telegram пуля, гора и висты пишутся сами, а итог сводится в конце партии.</p>
+      <a class="btn" href="https://t.me/PrefAIBot?start=site_calc">▶ Играть в Telegram</a>
+      <a class="btn ghost" href="/pravila/">Правила сочинки</a>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a href="/">Преферанс онлайн</a>
+      <a href="/pravila/">Правила сочинки</a>
+      <a href="/s-kompyuterom/">Преферанс с компьютером</a>
+    </div>
+  </footer>
+
+  <script>
+    // Та же формула, что в игре (server/engine.js → finalBalance)
+    const NAMES = ['А', 'Б', 'В'];
+    const rows = document.getElementById('rows');
+    rows.innerHTML = NAMES.map((n, i) => {
+      const others = [0, 1, 2].filter((j) => j !== i);
+      return `<tr>
+        <td><input id="n${i}" value="${n}" maxlength="12" aria-label="Имя игрока ${i + 1}"></td>
+        <td><input type="number" id="p${i}" value="20" inputmode="numeric" aria-label="Пуля"></td>
+        <td><input type="number" id="m${i}" value="0" inputmode="numeric" aria-label="Гора"></td>
+        ${others.map((j) => `<td><label for="w${i}${j}" id="l${i}${j}"></label><input type="number" id="w${i}${j}" value="0" inputmode="numeric"></td>`).join('')}
+        <td class="num" id="r${i}">0</td>
+      </tr>`;
+    }).join('');
+
+    const num = (id) => Number(document.getElementById(id).value) || 0;
+    function calc() {
+      const T = num('T'), k = num('k');
+      const names = [0, 1, 2].map((i) => document.getElementById('n' + i).value || NAMES[i]);
+      const m = [0, 1, 2].map((i) => num('m' + i) + Math.max(0, T - num('p' + i)));
+      const total = m[0] + m[1] + m[2];
+      [0, 1, 2].forEach((i) => {
+        let bal = (k * (total - 3 * m[i])) / 3;
+        for (const j of [0, 1, 2]) if (j !== i) bal += num(`w${i}${j}`) - num(`w${j}${i}`);
+        bal = Math.round(bal * 100) / 100;
+        const el = document.getElementById('r' + i);
+        el.textContent = (bal > 0 ? '+' : '') + bal;
+        el.className = 'num ' + (bal > 0 ? 'res-plus' : bal < 0 ? 'res-minus' : '');
+      });
+      [0, 1, 2].forEach((i) => [0, 1, 2].filter((j) => j !== i).forEach((j) => {
+        document.getElementById(`l${i}${j}`).textContent = 'на ' + names[j];
+      }));
+    }
+    document.getElementById('calc').addEventListener('input', calc);
+    document.getElementById('load-example').addEventListener('click', (e) => {
+      e.preventDefault();
+      const ex = { n: ['Аня', 'Боря', 'Вика'], p: [20, 20, 20], m: [4, 14, 0], w: { '01': 30, '02': 12, '10': 8, '12': 20, '20': 10, '21': 16 } };
+      [0, 1, 2].forEach((i) => {
+        document.getElementById('n' + i).value = ex.n[i];
+        document.getElementById('p' + i).value = ex.p[i];
+        document.getElementById('m' + i).value = ex.m[i];
+      });
+      for (const [key, v] of Object.entries(ex.w)) document.getElementById('w' + key).value = v;
+      document.getElementById('T').value = 20;
+      document.getElementById('k').value = 10;
+      calc();
+      document.getElementById('calc').scrollIntoView({ behavior: 'smooth' });
+    });
+    calc();
+  </script>
+</body>
+</html>

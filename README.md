@@ -119,6 +119,8 @@ server {
 - Код: `/srv/preferans` (git, read-only deploy key `github-preferans`), контейнер `preferans-app-1` на `127.0.0.1:8097`.
 - nginx: `/etc/nginx/sites-available/preferans` (копия `deploy/nginx/preferans.conf`), домен `artemshaer.ru`.
 - Столы хранятся в docker-томе `preferans_data`, переживают пересборку.
+- `WEBAPP_URL=https://artemshaer.ru/app` (корень — сайт; Telegram-ссылки на корень сами уходят в /app).
+- Источники игроков (`/start <метка>`) — в `data/sources.json` того же тома.
 - `.env` лежит только на сервере (`chmod 600`), в git его нет.
 
 Обновить после пуша в `main`:
@@ -144,6 +146,7 @@ server/tables.js    столы, посадка, чат, сохранение
 server/telegram.js  проверка initData, бот
 server/stats.js     статистика игроков и рейтинг
 server/index.js     HTTP + WebSocket + обработка команд бота
-public/             Mini App (чистый JS, без сборки)
+public/app.html     Mini App (чистый JS, без сборки), открывается по /app
+public/index.html   сайт: лендинг, /pravila/, /kalkulyator/, /s-kompyuterom/ (SEO, см. docs/growth.md)
 test/               тесты движка и сквозной тест
 ```

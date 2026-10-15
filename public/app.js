@@ -130,7 +130,7 @@ function render() {
   $('#call-banner').hidden = !S.table?.callActive;
   $('#title').textContent = S.table?.chatTitle ? `🃏 ${S.table.chatTitle}` : 'Преферанс · Сочи';
   renderBadge();
-  if (!S.me) { scr.innerHTML = `<div class="lobby"><div class="hint">${tg?.initData || DEV_NAME ? 'Подключение…' : 'Откройте игру через Telegram-бота.'}</div></div>`; return; }
+  if (!S.me) { scr.innerHTML = `<div class="lobby"><div class="hint">${tg?.initData || DEV_NAME ? 'Подключение…' : 'Откройте игру через Telegram: <a href="https://t.me/PrefAIBot?start=app">@PrefAIBot</a>'}</div></div>`; return; }
   if (!S.tableId) { scr.innerHTML = noTableHtml(); return; }
   if (!S.table) { scr.innerHTML = '<div class="lobby"><div class="hint">Загрузка стола…</div></div>'; return; }
   // нет партии или пуля закрыта и кто-то ушёл — лобби: можно позвать людей или посадить ИИ

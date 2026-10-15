@@ -2,44 +2,157 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Преферанс · Сочи</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/style.css">
+  <script>
+    // Telegram открывает Mini App по старому адресу (корень) — уводим в игру, сохраняя initData в hash
+    (function () {
+      var q = location.search, h = location.hash;
+      if (/tgWebApp/.test(q + h) || /[?&](dev|table)=/.test(q)) location.replace('/app' + q + h);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Преферанс онлайн бесплатно — Сочинка в Telegram, с друзьями и с компьютером</title>
+  <meta name="description" content="Играйте в преферанс онлайн бесплатно прямо в Telegram: классическая сочинка на троих, игра с друзьями в группе с видеочатом или с компьютером — ИИ четырёх уровней. Без установки и без рекламы.">
+  <link rel="canonical" href="https://artemshaer.ru/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#154330">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:site_name" content="Преферанс · Сочи">
+  <meta property="og:title" content="Преферанс онлайн в Telegram — бесплатно, на троих">
+  <meta property="og:description" content="Сочинка с друзьями в группе с видеочатом или с ИИ четырёх уровней. Без установки.">
+  <meta property="og:url" content="https://artemshaer.ru/">
+  <meta property="og:image" content="https://artemshaer.ru/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://artemshaer.ru/#site",
+        "url": "https://artemshaer.ru/",
+        "name": "Преферанс · Сочи",
+        "inLanguage": "ru"
+      },
+      {
+        "@type": ["VideoGame", "WebApplication"],
+        "name": "Преферанс «Сочинка» в Telegram",
+        "url": "https://artemshaer.ru/",
+        "applicationCategory": "GameApplication",
+        "genre": ["Карточная игра", "Преферанс"],
+        "operatingSystem": "Telegram (Android, iOS, Windows, macOS, Linux)",
+        "playMode": ["MultiPlayer", "SinglePlayer"],
+        "numberOfPlayers": { "@type": "QuantitativeValue", "value": 3 },
+        "inLanguage": "ru",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Игра бесплатная?", "acceptedAnswer": { "@type": "Answer", "text": "Да. Играть можно бесплатно и без рекламы. Ставок на деньги нет: счёт ведётся в вистах." } },
+          { "@type": "Question", "name": "Нужно что-то скачивать?", "acceptedAnswer": { "@type": "Answer", "text": "Нет. Игра открывается внутри Telegram на телефоне или компьютере: нажмите «Играть в Telegram», затем «Открыть игру»." } },
+          { "@type": "Question", "name": "Можно играть одному?", "acceptedAnswer": { "@type": "Answer", "text": "Да. Кнопка «Сыграть с ИИ» сажает вас против двух компьютерных соперников. Уровень выбирается: новичок, любитель, профи или мастер." } },
+          { "@type": "Question", "name": "По каким правилам идёт игра?", "acceptedAnswer": { "@type": "Answer", "text": "Классическая сочинка: ответственный вист, распасы, мизер, «без трёх». Выход с распасов, цену распасов и «Сталинград» можно настроить под свою компанию." } },
+          { "@type": "Question", "name": "Как сыграть с друзьями?", "acceptedAnswer": { "@type": "Answer", "text": "Создайте группу в Telegram на троих, добавьте бота @PrefAIBot и отправьте /newgame. Видеочат группы не прерывается, пока идёт игра. Если третьего нет, его место займёт ИИ." } }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
-  <div id="app">
-    <header id="topbar">
-      <div id="title">Преферанс · Сочи</div>
-      <div class="top-actions">
-        <button id="btn-score" class="icon-btn" title="Пулька">📊</button>
-        <button id="btn-stats" class="icon-btn" title="Статистика и рейтинг игроков">🏆</button>
-        <button id="btn-chat" class="icon-btn" title="Чат">💬<span id="chat-badge" hidden></span></button>
-        <button id="btn-group" class="icon-btn" title="Чат группы и звонок" hidden>📞</button>
+  <header class="nav">
+    <div class="wrap">
+      <a class="logo" href="/">♠ Преферанс <span>· Сочи</span></a>
+      <a href="/pravila/">Правила</a>
+      <a href="/kalkulyator/">Калькулятор пули</a>
+      <a href="/s-kompyuterom/">С компьютером</a>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Преферанс онлайн в Telegram: бесплатно, на троих</h1>
+        <p class="lead">Классическая сочинка с друзьями прямо в группе, под видеозвонок. Или против компьютера: ИИ четырёх уровней, от новичка до мастера.</p>
+        <a class="btn" href="https://t.me/PrefAIBot?start=site_main">▶ Играть в Telegram</a>
+        <a class="btn ghost" href="/pravila/">Правила сочинки</a>
+        <div class="note">Без установки, без регистрации и без рекламы. Работает на телефоне и в Telegram на компьютере.</div>
       </div>
-    </header>
-    <div id="call-banner" hidden>🔴 В группе идёт звонок — <a href="#" id="call-join">присоединиться</a></div>
-    <main id="screen"></main>
+      <div class="fan" aria-hidden="true">
+        <div class="card">A<b>♠</b></div>
+        <div class="card r">K<b>♥</b></div>
+        <div class="card">Q<b>♣</b></div>
+        <div class="card r">J<b>♦</b></div>
+      </div>
+    </div>
   </div>
 
-  <div id="chat-panel" class="sheet" hidden>
-    <div class="sheet-head"><b>Чат стола</b><button class="icon-btn" data-close>✕</button></div>
-    <div id="chat-list"></div>
-    <div id="emote-bar"></div>
-    <form id="chat-form"><input id="chat-input" maxlength="500" placeholder="Сообщение…" autocomplete="off"><button>➤</button></form>
-  </div>
+  <main class="wrap">
+    <section>
+      <h2>Почему здесь удобно играть в пулю</h2>
+      <div class="grid">
+        <div class="tile"><h3>👥 С друзьями, как за столом</h3><p>Игра открывается из вашей группы в Telegram. Чат, голосовые и видеочат остаются рядом, а звонок не прерывается.</p></div>
+        <div class="tile"><h3>🤖 Против компьютера</h3><p>Не хватает третьего — его место займёт ИИ. Можно сыграть и одному против двух ботов. Мастер перед каждым ходом разыгрывает 36 возможных раскладов.</p></div>
+        <div class="tile"><h3>📜 Правила вашей компании</h3><p>Ответственный вист, полвиста, мизер, распасы, «без трёх». Выход с распасов, цену взятки на распасах и «Сталинград» можно настроить.</p></div>
+        <div class="tile"><h3>📊 Пулька пишется сама</h3><p>Пуля, гора и висты считаются автоматически, итог сводится в конце. Есть статистика и общий рейтинг игроков.</p></div>
+      </div>
+    </section>
 
-  <div id="stats-panel" class="sheet" hidden>
-    <div class="sheet-head"><b>Статистика и рейтинг</b><button class="icon-btn" data-close>✕</button></div>
-    <div id="stats-body"></div>
-  </div>
+    <section>
+      <h2>Как начать за минуту</h2>
+      <ol class="steps">
+        <li><b>Откройте бота</b> <a href="https://t.me/PrefAIBot?start=site_steps">@PrefAIBot</a> и нажмите «Старт».</li>
+        <li><b>Нажмите «Открыть игру»</b>, затем «🤖 Сыграть с ИИ», чтобы сразу сесть против двух ботов.</li>
+        <li><b>Или позовите друзей:</b> создайте группу на троих, добавьте бота и отправьте <code>/newgame</code>. Первые трое, нажавшие «Играть», садятся за стол.</li>
+      </ol>
+    </section>
 
-  <div id="score-panel" class="sheet" hidden>
-    <div class="sheet-head"><b>Пулька</b><button class="icon-btn" data-close>✕</button></div>
-    <div id="score-body"></div>
-  </div>
+    <section>
+      <h2>Соперники-компьютеры четырёх уровней</h2>
+      <p>Боты играют честно: они видят только то, что видел бы человек на их месте, то есть свою руку, открытые карты, прикуп и вышедшие карты. Подробнее на странице <a href="/s-kompyuterom/">«Преферанс с компьютером»</a>.</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>Уровень</th><th>Как играет</th></tr>
+          <tr><td>Новичок</td><td>Ошибается в оценке руки, часто ходит наугад. Подходит, чтобы освоиться.</td></tr>
+          <tr><td>Любитель</td><td>Играет по разумным правилам, но не запоминает вышедшие карты.</td></tr>
+          <tr><td>Профи</td><td>Считает вышедшие карты, аккуратно заказывает и вистует.</td></tr>
+          <tr><td>Мастер</td><td>Перед каждым ходом перебирает возможные расклады скрытых карт и выбирает лучший ход.</td></tr>
+        </table>
+      </div>
+    </section>
 
-  <div id="toast" hidden></div>
-  <script type="module" src="/app.js"></script>
+    <section>
+      <h2>Коротко о правилах сочинки</h2>
+      <p>Играют втроём колодой из 32 карт: каждому по 10, ещё 2 в прикуп. В торговле назначают игру от шестерной до десятерной; старшинство мастей такое: <span class="s">♠</span> <span class="c">♣</span> <span class="d">♦</span> <span class="h">♥</span>, выше всех БК (без козыря). Взявший игру забирает прикуп, сносит две карты и заказывает. Остальные решают, вистовать или пасовать. Если все спасовали, играют распасы: задача — взять как можно меньше взяток.</p>
+      <p>В пулю пишут выигранное, в гору — штрафы, висты пишут на соперников. Когда пуля у всех закрыта, гору переводят в висты и сводят сальдо.</p>
+      <p><a href="/pravila/">Полные правила сочинки и словарь терминов →</a> &nbsp; <a href="/kalkulyator/">Калькулятор пули →</a></p>
+    </section>
+
+    <section>
+      <h2>Вопросы и ответы</h2>
+      <details><summary>Игра бесплатная?</summary><p>Да. Играть можно бесплатно и без рекламы. Ставок на деньги нет: счёт ведётся в вистах.</p></details>
+      <details><summary>Нужно что-то скачивать?</summary><p>Нет. Игра открывается внутри Telegram на телефоне или компьютере: нажмите «Играть в Telegram», затем «Открыть игру».</p></details>
+      <details><summary>Можно играть одному?</summary><p>Да. Кнопка «Сыграть с ИИ» сажает вас против двух компьютерных соперников. Уровень выбирается: новичок, любитель, профи или мастер.</p></details>
+      <details><summary>По каким правилам идёт игра?</summary><p>Классическая сочинка: ответственный вист, распасы, мизер, «без трёх». Выход с распасов, цену распасов и «Сталинград» можно настроить под свою компанию.</p></details>
+      <details><summary>Как сыграть с друзьями?</summary><p>Создайте группу в Telegram на троих, добавьте бота @PrefAIBot и отправьте /newgame. Видеочат группы не прерывается, пока идёт игра. Если третьего нет, его место займёт ИИ.</p></details>
+    </section>
+
+    <div class="cta">
+      <h2>Сдаём?</h2>
+      <p>Размер пули выбирается при создании стола, так что можно сыграть и короткую.</p>
+      <a class="btn" href="https://t.me/PrefAIBot?start=site_bottom">▶ Играть в Telegram</a>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a href="/pravila/">Правила сочинки</a>
+      <a href="/kalkulyator/">Калькулятор пули</a>
+      <a href="/s-kompyuterom/">Преферанс с компьютером</a>
+      <a href="https://t.me/PrefAIBot?start=site_footer">@PrefAIBot</a>
+    </div>
+  </footer>
 </body>
 </html>

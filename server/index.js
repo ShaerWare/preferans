@@ -16,7 +16,23 @@ const APP_SHORT_NAME = process.env.APP_SHORT_NAME || ''; // из BotFather /newa
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const DEV = process.env.DEV === '1'; // вход без Telegram: ?dev=Имя
 
-const tables = new Tables(process.env.DATA_FILE || path.join(ROOT, 'data', 'tables.json'));
+const DATA_FILE = process.env.DATA_FILE || path.join(ROOT, 'data', 'tables.json');
+const tables = new Tables(DATA_FILE);
+
+// Откуда приходят игроки: ссылки вида t.me/<бот>?start=<метка> (сайт, посты, реклама).
+// Считаем нажатия «Старт» на метку; первая метка человека — его источник.
+const SOURCES_FILE = path.join(path.dirname(DATA_FILE), 'sources.json');
+const sources = (() => { try { return JSON.parse(fs.readFileSync(SOURCES_FILE, 'utf8')); } catch { return { users: {}, starts: {} }; } })();
+function trackSource(userId, tag) {
+  tag = String(tag || 'direct').slice(0, 40);
+  sources.starts[tag] = (sources.starts[tag] || 0) + 1;
+  if (!sources.users[userId]) sources.users[userId] = { src: tag, at: new Date().toISOString() };
+  try {
+    fs.mkdirSync(path.dirname(SOURCES_FILE), { recursive: true });
+    fs.writeFileSync(SOURCES_FILE + '.tmp', JSON.stringify(sources));
+    fs.renameSync(SOURCES_FILE + '.tmp', SOURCES_FILE);
+  } catch (e) { console.error('[sources]', e.message); }
+}
 const clients = new Set(); // { ws, user, tableId }
 
 // Кто из игроков сейчас подключён: нужно, чтобы заменять ушедших ИИ
@@ -35,20 +51,35 @@ function presenceChanged(client) {
 let bot = null;
 
 // ---------- статика ----------
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8' };
 const PUBLIC = path.join(ROOT, 'public');
+
+// /app — сама игра (Mini App), остальное — сайт: / и /раздел/ отдают index.html раздела,
+// раздел без слэша → 301 на слэш, неизвестный адрес → 404 (не подсовываем поисковикам игру)
+function resolveStatic(pathname) {
+  if (pathname === '/app' || pathname === '/app/') return { file: path.join(PUBLIC, 'app.html') };
+  let file;
+  try { file = path.normalize(path.join(PUBLIC, decodeURIComponent(pathname))); } catch { return { status: 400 }; }
+  if (!file.startsWith(PUBLIC)) return { status: 403 };
+  if (fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+    if (!pathname.endsWith('/')) return { redirect: pathname + '/' };
+    file = path.join(file, 'index.html');
+  }
+  if (!fs.existsSync(file) || file.endsWith('app.html')) return { status: 404, file: path.join(PUBLIC, '404.html') };
+  return { file };
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/healthz') { res.end('ok'); return; }
-  let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
-  if (!file.startsWith(PUBLIC)) { res.writeHead(403).end(); return; }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC, 'index.html');
-  res.writeHead(200, {
-    'content-type': MIME[path.extname(file)] || 'application/octet-stream',
-    'cache-control': file.endsWith('index.html') ? 'no-cache' : 'public, max-age=300',
+  const r = resolveStatic(url.pathname);
+  if (r.redirect) { res.writeHead(301, { location: r.redirect + url.search }).end(); return; }
+  if (!r.file) { res.writeHead(r.status).end(); return; }
+  res.writeHead(r.status || 200, {
+    'content-type': MIME[path.extname(r.file)] || 'application/octet-stream',
+    'cache-control': r.file.endsWith('.html') ? 'no-cache' : 'public, max-age=300',
   });
-  fs.createReadStream(file).pipe(res);
+  fs.createReadStream(r.file).pipe(res);
 });
 
 // ---------- WebSocket ----------
@@ -187,6 +218,11 @@ async function onUpdate(u) {
   const text = m.text || '';
   const cmd = text.startsWith('/') ? text.split(/[\s@]/)[0].toLowerCase() : null;
 
+  if (cmd === '/start' && !isGroup && m.from) {
+    const tag = text.split(/\s+/)[1]?.match(/^[\w-]+$/)?.[0];
+    trackSource(String(m.from.id), tag?.startsWith('t_') ? 'group' : tag);
+  }
+
   // /start t_<id> — пришли по кнопке «Играть» из группы
   const startTable = cmd === '/start' && !isGroup && WEBAPP_URL ? text.split(/\s+/)[1]?.match(/^t_([\w-]+)$/)?.[1] : null;
   if (startTable) {
@@ -199,10 +235,16 @@ async function onUpdate(u) {
 
   if (cmd === '/start' || cmd === '/help') {
     const help = [
-      'Преферанс «Сочинка» на троих.',
+      'Преферанс «Сочинка» на троих — бесплатно, прямо в Telegram.',
+      '',
+      '🤖 Сыграть сейчас: «Открыть игру» → «Сыграть с ИИ». Соперники — боты четырёх уровней, от новичка до мастера.',
+      '',
+      '👥 С друзьями:',
       '1. Создайте группу с двумя друзьями и добавьте меня.',
       '2. В группе отправьте /newgame — появится кнопка «Играть».',
       '3. Запустите видеочат группы: звонок продолжается, пока открыта игра, а чат — рядом.',
+      '',
+      'Правила и калькулятор пули: https://artemshaer.ru/pravila/',
     ].join('\n');
     const extra = !isGroup && WEBAPP_URL ? { reply_markup: { inline_keyboard: [[{ text: '🃏 Открыть игру', web_app: { url: WEBAPP_URL } }]] } } : {};
     return bot.send(chat.id, help, extra);
