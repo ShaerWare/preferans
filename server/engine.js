@@ -172,9 +172,9 @@ function doDiscard(state, seat, cards, contract) {
   state.discard = cards;
   state.contract = contract;
   say(state, `${state.players[seat].name} заказал ${bidLabel(contract)}.`);
-  if (contract === 'MIS') {
-    state.misereCards = [...hand]; // все 12 карт мизериста (рука + прикуп) — для открытого расклада
-    // ловящие по очереди решают, кто из них ловит (играет за обе руки)
+  if (contract === 'MIS' || bidLevel(contract) === 10) {
+    if (contract === 'MIS') state.misereCards = [...hand]; // все 12 карт мизериста (рука + прикуп) — для открытого расклада
+    // мизер и десятерная без вистов: противники по очереди решают, кто из них ловит (играет за обе руки)
     const a = next(seat);
     state.catch = { order: [a, next(a)], turn: a, declined: [], catcher: null };
     state.phase = 'misereCatch';
@@ -276,21 +276,22 @@ function doCatch(state, seat, take) {
     c.catcher = a; // отказались оба — ловит первый
   }
   c.turn = null;
-  say(state, `Мизер ловит ${state.players[c.catcher].name}.`);
-  startPlay(state, 'misere');
+  const mis = state.contract === 'MIS';
+  say(state, `${mis ? 'Мизер' : 'Десятерную'} ловит ${state.players[c.catcher].name}.`);
+  startPlay(state, mis ? 'misere' : 'game');
 }
 
 function startPlay(state, kind) {
   const trump = kind === 'game' ? bidTrump(state.contract) : 'N';
   const controller = [0, 1, 2];
   const open = [];
-  if (kind === 'game' && state.whist.whisters.length === 1 && state.whist.open) {
+  if (kind === 'game' && state.whist?.whisters.length === 1 && state.whist.open) {
     const whister = state.whist.whisters[0];
     const passer = state.whist.order.find((s) => s !== whister);
     controller[passer] = whister;
     open.push(whister, passer);
   }
-  if (kind === 'misere' && state.catch?.catcher != null) {
+  if (kind !== 'raspas' && state.catch?.catcher != null) {
     const partner = state.catch.order.find((s) => s !== state.catch.catcher);
     controller[partner] = state.catch.catcher;
   }
@@ -362,8 +363,8 @@ function doPlay(state, userSeat, card) {
   p.lastTrick = { cards: p.trick, winner: w, talonCard: p.kind === 'raspas' && p.trickNo < 2 && state.config.raspasTalonLeads ? state.talon[p.trickNo] : null };
   p.trickNo += 1;
   if (w != null) p.leader = w;
-  // на мизере ловящие открывают карты после первого хода
-  if (p.kind === 'misere' && p.trickNo === 1) {
+  // на мизере и десятерной ловящие открывают карты после первого хода
+  if (state.catch && p.trickNo === 1) {
     p.open = [...new Set([...p.open, ...[0, 1, 2].filter((s) => s !== state.declarer)])];
   }
   if (p.trickNo === 10) return settle(state, { kind: p.kind });
@@ -554,7 +555,7 @@ function settle(state, { kind }) {
     unplayed = true;
     sc.mountain[d] += 3 * v;
     lines.push(`${name(d)}: без трёх → гора +${3 * v}`);
-    for (const s of [next(d), next(next(d))]) {
+    if (level < 10) for (const s of [next(d), next(next(d))]) { // на десятерной вистов нет
       sc.whists[s][d] += 3 * v + v * each;
       lines.push(`${name(s)} → висты +${3 * v + v * each}`);
     }
@@ -563,9 +564,14 @@ function settle(state, { kind }) {
     const v = cfg.gameValue[level];
     const O = cfg.whistObligation[level];
     const w = state.whist;
-    const [a, b] = w.order;
+    const [a, b] = w ? w.order : [];
 
-    if (kind === 'nowhist') {
+    if (!w) {
+      // десятерная: без вистов, ловят открыто; недобор — по стоимости игры в гору за каждую взятку
+      const got = tricks[d];
+      if (got >= level) { addPool(state, d, v); lines.push(`${name(d)}: ${got} из ${level} — сыграл → пуля +${v}`); }
+      else { unplayed = true; sc.mountain[d] += v * (level - got); lines.push(`${name(d)}: без ${level - got} → гора +${v * (level - got)}`); }
+    } else if (kind === 'nowhist') {
       addPool(state, d, v);
       lines.push(`Оба пас: ${name(d)} → пуля +${v}`);
     } else if (kind === 'half') {

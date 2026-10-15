@@ -553,8 +553,8 @@ test('несыгранная игра не прерывает распасы: в
   act(s, s.bidding.turn, { type: 'bid', bid: 'PASS' });
   const d = s.declarer;
   act(s, d, { type: 'discard', cards: s.hands[d].slice(0, 2), contract: '10S' });
-  while (s.phase === 'whisting') act(s, s.whist.turn, { type: 'whist', choice: 'WHIST' });
-  while (s.phase === 'play') act(s, s.play.turn, { type: 'play', card: legalCards(s, s.play.turn)[0] });
+  act(s, s.catch.turn, { type: 'catch', take: true });
+  playOut(s);
   assert.ok(s.score.mountain[d] > 0, `десятерная сыгралась — подберите другой сид: ${s.lastResult.title}`);
   act(s, 0, { type: 'nextDeal' });
   assert.equal(s.raspasStreak, 1);
@@ -578,4 +578,47 @@ test('«остальные мои» только на распасах', () => {
   const s = toPlay();
   assert.equal(viewFor(s, 0).legal.takeRest, false);
   assert.throws(() => act(s, 0, { type: 'takeRest' }), GameError);
+});
+
+function tenDeal() {
+  const s = game();
+  act(s, 1, { type: 'bid', bid: '10S' });
+  act(s, 2, { type: 'bid', bid: 'PASS' });
+  act(s, 0, { type: 'bid', bid: 'PASS' });
+  act(s, 1, { type: 'discard', cards: s.hands[1].slice(0, 2), contract: '10S' });
+  return s;
+}
+
+function playOut(s) {
+  while (s.phase === 'play') {
+    const p = s.play;
+    act(s, p.controller[p.turn], { type: 'play', card: legalCards(s, p.turn)[0] });
+  }
+}
+
+test('десятерная: без вистов, ловящий выбирается как на мизере', () => {
+  const s = tenDeal();
+  assert.equal(s.phase, 'misereCatch');
+  assert.equal(s.whist, null);
+  act(s, 2, { type: 'catch', take: true });
+  assert.equal(s.phase, 'play');
+  assert.equal(s.play.kind, 'game');
+  assert.equal(s.play.trump, 'S');
+  assert.deepEqual(s.play.controller, [2, 1, 2]);
+  playOut(s);
+  const got = s.play.tricks[1];
+  const sc = s.score;
+  assert.deepEqual(sc.whists, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]); // никаких вистов
+  if (got === 10) assert.equal(sc.pool[1], 10);
+  else assert.equal(sc.mountain[1], 10 * (10 - got));
+});
+
+test('десятерная без трёх: только гора, вистов нет', () => {
+  const s = game();
+  act(s, 1, { type: 'bid', bid: '10S' });
+  act(s, 2, { type: 'bid', bid: 'PASS' });
+  act(s, 0, { type: 'bid', bid: 'PASS' });
+  act(s, 1, { type: 'withoutThree' });
+  assert.equal(s.score.mountain[1], 30);
+  assert.deepEqual(s.score.whists, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
 });

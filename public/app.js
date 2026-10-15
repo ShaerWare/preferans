@@ -284,7 +284,10 @@ function oppHtml(s) {
   if (v.misere && s === v.declarer) {
     cards = misereLayoutHtml();
   } else if (hand) {
-    cards = `<div class="mini-hand">${sortHand(hand, v.play?.trump).map((c) => cardHtml(c, { cls: `mini ${clickable ? (clickable.has(c) ? 'legal' : 'dim') : ''}`, attrs: clickable?.has(c) ? `data-play="${c}"` : '' })).join('')}</div>`;
+    // открытая рука — по мастям, каждая масть своим рядом
+    const sorted = sortHand(hand, v.play?.trump);
+    const suits = [...new Set(sorted.map((c) => c.slice(-1)))];
+    cards = `<div class="mis-layout">${suits.map((suit) => `<div class="mis-row">${sorted.filter((c) => c.slice(-1) === suit).map((c) => `<div class="mis-slot">${cardHtml(c, { cls: `mini ${clickable ? (clickable.has(c) ? 'legal' : 'dim') : ''}`, attrs: clickable?.has(c) ? `data-play="${c}"` : '' })}</div>`).join('')}</div>`).join('')}</div>`;
   } else {
     cards = `<div class="backs">${'<div class="back"></div>'.repeat(v.handCounts[s])}</div>`;
   }
@@ -301,6 +304,7 @@ function centerHtml() {
   let info = '';
   if (v.play?.kind === 'raspas') info = `Распасы — берите поменьше${v.raspasPrice > 1 ? ` · взятка по ${v.raspasPrice}` : ''}`;
   else if (v.contract === 'MIS') info = `${esc(v.players[v.declarer].name)} играет мизер${v.catch?.catcher != null ? ` · ловит ${esc(v.players[v.catch.catcher].name)}` : ''}`;
+  else if (v.contract && v.play && !v.whist) info = `${esc(v.players[v.declarer].name)}: ${bidHtml(v.contract)} без вистов${v.catch?.catcher != null ? ` · ловит ${esc(v.players[v.catch.catcher].name)}` : ''}`;
   else if (v.contract && v.play) {
     const ws = v.whist.whisters.map((s) => esc(v.players[s].name)).join(' и ');
     info = `${esc(v.players[v.declarer].name)}: ${bidHtml(v.contract)} · вист: ${ws}${v.whist.whisters.length === 1 ? (v.whist.open ? ' (в открытую)' : ' (в закрытую)') : ''}${v.config.stalingrad && v.contract === '6S' ? ' · Сталинград' : ''}`;
@@ -370,7 +374,7 @@ function actionsHtml() {
         ${mis ? '' : bidGrid(l.contracts, 'contract', S.contractSel)}
         <div class="row"><button class="btn" data-act="discard" ${ready ? '' : 'disabled'}>Снести и заказать${mis ? ' мизер' : S.contractSel ? ' ' + bidHtml(S.contractSel) : ''}</button>
         ${l.withoutThree ? `<button class="btn ${S.confirmW3 ? 'danger' : 'ghost'}" data-act="w3">${S.confirmW3 ? 'Точно без трёх?' : '🏳️ Без трёх'}</button>` : ''}</div>
-        ${S.confirmW3 ? `<div class="hint">Сдаётесь без розыгрыша: гора ${3 * gameValue(v.bidding.highest.bid)}, противникам — висты. Нажмите ещё раз для подтверждения.</div>` : ''}`;
+        ${S.confirmW3 ? `<div class="hint">Сдаётесь без розыгрыша: гора ${3 * gameValue(v.bidding.highest.bid)}${parseInt(v.bidding.highest.bid, 10) === 10 ? '' : ', противникам — висты'}. Нажмите ещё раз для подтверждения.</div>` : ''}`;
     }
     case 'whisting':
       if (!l.whist.length) return wait(`<b>${name(t)}</b> решает: вист или пас`);
@@ -379,10 +383,11 @@ function actionsHtml() {
         ${l.whist.includes('HALF') ? '<div class="hint">Полвиста: без розыгрыша, вам — висты за половину обязательства. Первый вистующий ещё может передумать и вистовать.</div>' : ''}`;
     case 'misereCatch': {
       const [a, b] = v.catch.order;
-      if (!l.catchChoice) return wait(`<b>${name(t)}</b> решает, кто ловит мизер`);
+      const game = v.contract === 'MIS' ? 'мизер' : bidHtml(v.contract);
+      if (!l.catchChoice) return wait(`<b>${name(t)}</b> решает, кто ловит ${game}`);
       const other = v.seat === a ? b : a;
       const second = v.seat === b;
-      return `<div class="msg">${name(v.declarer)} играет <b>мизер</b>. Кто ловит?${second ? `<br>${name(a)} отказался` : ''}</div>
+      return `<div class="msg">${name(v.declarer)} играет <b>${game}</b>${v.contract === 'MIS' ? '' : ' (без вистов)'}. Кто ловит?${second ? `<br>${name(a)} отказался` : ''}</div>
         <div class="row"><button class="btn" data-act="catch" data-take="1">🎯 Ловлю сам</button><button class="btn ghost" data-act="catch" data-take="0">Пусть ловит ${name(other)}</button></div>
         <div class="hint">Ловящий ходит за обе руки и сразу видит карты напарника.${second ? ` Если откажетесь, ловит ${name(a)}.` : ''}</div>`;
     }

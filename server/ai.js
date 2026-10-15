@@ -512,6 +512,7 @@ function decidePlay(state, actor, lvl, rng) {
 // Второй, если первый отказался, ловит всегда (иначе ловить всё равно первому).
 function decideCatch(state, seat, lvl, rng) {
   if (state.catch.order[1] === seat) return true;
+  if (state.contract !== 'MIS') return true; // десятерную ловит первый
   if (lvl.randomPlay && rng() < lvl.randomPlay) return rng() < 0.5;
   const low = state.hands[seat].filter((c) => rankOf(c) <= 2).length; // 7, 8, 9
   return low >= 4;

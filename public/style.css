@@ -72,8 +72,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .backs { display: flex; }
 .back { width: calc(var(--mini-w) * .7); height: calc(var(--mini-h) * .7); border-radius: 3px; background: repeating-linear-gradient(45deg, #8b1e2b 0 3px, #a8283a 3px 6px); border: 1px solid #fff5; margin-left: -12px; }
 .back:first-child { margin-left: 0; }
-.mini-hand { display: flex; flex-wrap: wrap; gap: 2px; max-width: 100%; }
-.opp.right .mini-hand { justify-content: flex-end; }
 
 .center { position: relative; display: grid; place-items: center; min-height: 22px; overflow: hidden; padding-top: 18px; }
 .contract-info { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--muted); white-space: nowrap; }

@@ -80,8 +80,7 @@ test('боты отвечают на предложения разумно', () 
   act(g, 1, { type: 'bid', bid: 'PASS' });
   act(g, 2, { type: 'bid', bid: 'PASS' });
   act(g, 0, { type: 'discard', cards: g.hands[0].filter((c) => !['AS', 'KS', 'QS', 'JS', 'TS', '9S', '8S', '7S', 'AH', 'AD'].includes(c)), contract: '10S' });
-  act(g, 1, { type: 'whist', choice: 'WHIST' });
-  act(g, 2, { type: 'whist', choice: 'WHIST' });
+  act(g, 1, { type: 'catch', take: true }); // на десятерной вистов нет — ловят
   // «беру все» — правда, защита соглашается
   act(g, 0, { type: 'propose', declTricks: 10 });
   assert.equal(decide(g, 1, 'master', rng).accept, true);
