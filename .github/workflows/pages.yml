@@ -1,0 +1,59 @@
+name: Pages
+
+# Публикует копию лендинга (public/) на https://shaerware.github.io/preferans/.
+# Сайт на GitHub Pages живёт в подкаталоге /preferans/, поэтому корневые пути
+# переписываются; игра (/app) остаётся на основном домене. canonical и og:url
+# уже абсолютные и указывают на artemshaer.ru — копия не конкурирует в поиске.
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'public/**', '.github/workflows/pages.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  BASE: /preferans
+  ORIGIN: https://artemshaer.ru
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Собрать сайт
+        run: |
+          mkdir _site
+          cp -r public/index.html public/404.html public/site.css public/favicon.svg public/og.png \
+                public/pravila public/kalkulyator public/s-kompyuterom _site/
+          find _site -name '*.html' -print0 | xargs -0 sed -i -E \
+            -e "s#(href|src)=\"/([^/\"][^\"]*)?\"#\1=\"${BASE}/\2\"#g" \
+            -e "s#location\.replace\('/app'#location.replace('${ORIGIN}/app'#g"
+          # Самопроверка: в собранных страницах не осталось корневых путей.
+          if grep -rnP '(href|src)="/(?!preferans/|/)' _site --include='*.html'; then
+            echo 'Остались корневые пути' >&2; exit 1
+          fi
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

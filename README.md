@@ -1,6 +1,35 @@
-# Преферанс «Сочинка» — Telegram Mini App
+<div align="center">
 
-Пуля на троих прямо в Telegram. Игра открывается из группового чата, а чат, голосовые, видеозвонки, стикеры и реакции остаются настоящими телеграмовскими: пока идёт игра, групповой видеочат не прерывается.
+<img src="public/og.png" alt="Преферанс «Сочинка» в Telegram" width="720">
+
+# Преферанс «Сочинка» в Telegram
+
+**Классическая пуля на троих прямо в Telegram: с друзьями в группе под видеозвонок или против ИИ четырёх уровней. Бесплатно, без установки и без рекламы.**
+
+[![Играть в Telegram](https://img.shields.io/badge/Играть-@PrefAIBot-26A5E4?logo=telegram&logoColor=white)](https://t.me/PrefAIBot?start=github)
+[![Сайт](https://img.shields.io/badge/сайт-artemshaer.ru-154330)](https://artemshaer.ru/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-лендинг-222?logo=github)](https://shaerware.github.io/preferans/)
+[![CI](https://github.com/ShaerWare/preferans/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaerWare/preferans/actions/workflows/ci.yml)
+![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
+![Зависимости: 1](https://img.shields.io/badge/зависимости-только%20ws-blue)
+
+[Правила сочинки](https://artemshaer.ru/pravila/) · [Калькулятор пули](https://artemshaer.ru/kalkulyator/) · [Игра с компьютером](https://artemshaer.ru/s-kompyuterom/)
+
+</div>
+
+---
+
+Игра открывается из группового чата, а чат, голосовые, видеозвонки, стикеры и реакции остаются настоящими телеграмовскими: пока идёт партия, видеочат группы не прерывается. Не хватает третьего — его место займёт бот, который не подглядывает в чужие карты.
+
+## Возможности
+
+- 🃏 **Полная «Сочинка»**: торговля, прикуп и снос, ответственный вист и полвиста, мизер, распасы, «без трёх», предложения и роспись пули.
+- ⚙️ **Настройки стола** под правила вашей компании: выход с распасов (6, 7, прогрессии), цена взятки на распасах, «Сталинград».
+- 🤖 **ИИ четырёх уровней**, от новичка до мастера. Мастер перед каждым ходом разыгрывает 36 возможных раскладов.
+- 👥 **Игра в группе под видеозвонок**: чат стола синхронизирован с группой в обе стороны, есть реакции над игроками.
+- 🏆 **Статистика и рейтинг** по аккаунту Telegram: доигранные и брошенные пули, сумма вистов.
+- 🔒 **Честная игра**: все ходы проверяет сервер, клиент видит только свои карты и открытые по правилам.
+- 🪶 **Минимум зависимостей**: сервер на Node.js с одной библиотекой `ws`, клиент на чистом JS без сборки.
 
 ## Как это устроено
 
@@ -114,20 +143,19 @@ server {
 
 Запуск через systemd или `pm2 start server/index.js --name pref`.
 
-## Продакшн (178.208.81.231)
-
-- Код: `/srv/preferans` (git, read-only deploy key `github-preferans`), контейнер `preferans-app-1` на `127.0.0.1:8097`.
-- nginx: `/etc/nginx/sites-available/preferans` (копия `deploy/nginx/preferans.conf`), домен `artemshaer.ru`.
-- Столы хранятся в docker-томе `preferans_data`, переживают пересборку.
-- `WEBAPP_URL=https://artemshaer.ru/app` (корень — сайт; Telegram-ссылки на корень сами уходят в /app).
-- Источники игроков (`/start <метка>`) — в `data/sources.json` того же тома.
-- `.env` лежит только на сервере (`chmod 600`), в git его нет.
-
-Обновить после пуша в `main`:
+## Деплой в Docker
 
 ```bash
-ssh root@178.208.81.231 'cd /srv/preferans && git pull && docker compose up -d --build'
+cp .env.example .env      # BOT_TOKEN, APP_SHORT_NAME, WEBAPP_URL
+docker compose up -d --build
 ```
+
+- Контейнер слушает `127.0.0.1:8097`; пример server-блока для nginx с WebSocket — `deploy/nginx/preferans.conf`, TLS выпускает `certbot --nginx`.
+- Столы, статистика и учёт источников хранятся в docker-томе `preferans_data` и переживают пересборку.
+- `WEBAPP_URL` указывает на `/app`: корень сайта — лендинг, а старые Telegram-ссылки на корень сами уходят в `/app`.
+- `.env` хранится только на сервере (`chmod 600`) и в репозиторий не попадает.
+
+Обновление: `git pull && docker compose up -d --build`.
 
 ## Как играть
 
@@ -147,6 +175,14 @@ server/telegram.js  проверка initData, бот
 server/stats.js     статистика игроков и рейтинг
 server/index.js     HTTP + WebSocket + обработка команд бота
 public/app.html     Mini App (чистый JS, без сборки), открывается по /app
-public/index.html   сайт: лендинг, /pravila/, /kalkulyator/, /s-kompyuterom/ (SEO, см. docs/growth.md)
+public/index.html   сайт: лендинг, /pravila/, /kalkulyator/, /s-kompyuterom/ (SEO)
 test/               тесты движка и сквозной тест
 ```
+
+## GitHub Pages
+
+Копия лендинга опубликована на [shaerware.github.io/preferans](https://shaerware.github.io/preferans/). Её собирает workflow `.github/workflows/pages.yml` из файлов `public/` при каждом пуше в `main`: пути переписываются под подкаталог `/preferans/`, а `canonical` остаётся на [artemshaer.ru](https://artemshaer.ru/), чтобы поисковики не считали копию дублем.
+
+## Автор
+
+Сделано в [ShaerWare Studio](https://shaerware.github.io/). Вопросы и предложения по правилам — в [Issues](https://github.com/ShaerWare/preferans/issues).
